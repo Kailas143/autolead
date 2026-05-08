@@ -1,0 +1,12 @@
+Classify the following email reply into ONE category only:
+
+Categories:
+- interested
+- not_interested
+- later
+- booked_call
+
+Reply:
+{reply_text}
+
+Return ONLY the category name.

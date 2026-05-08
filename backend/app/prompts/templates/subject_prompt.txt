@@ -1,0 +1,17 @@
+Generate 5 professional cold email subject lines.
+
+Context:
+Aurvyz helps businesses automate workflows using AI systems and custom operational tools.
+
+Target industry:
+{industry}
+
+Requirements:
+- short
+- professional
+- curiosity-driven
+- non-spammy
+- avoid clickbait
+- avoid excessive punctuation
+
+Return plain text only.

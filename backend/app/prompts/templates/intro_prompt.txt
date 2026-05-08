@@ -1,0 +1,19 @@
+Generate a short personalized intro line for a cold outreach email.
+
+Lead information:
+- Company: {company}
+- Industry: {industry}
+- Job Title: {job_title}
+- Website Summary: {website_summary}
+
+Context:
+Aurvyz builds intelligent systems, automation workflows, ERP tools, and AI-powered operational systems for businesses.
+
+Rules:
+- maximum 2 sentences
+- do not sound fake
+- avoid generic compliments
+- mention operational/workflow relevance if possible
+- sound human and observant
+
+Return plain text only.

@@ -1,0 +1,14 @@
+Generate a short follow-up email for a cold outreach sequence.
+
+Context:
+The lead did not respond to the first outreach email.
+
+Requirements:
+- concise
+- polite
+- not pushy
+- mention workflow efficiency
+- under 90 words
+- conversational tone
+
+Return plain text only.

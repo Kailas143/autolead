@@ -1,0 +1,17 @@
+Write a concise cold outreach email for an e-commerce brand or retailer.
+
+Lead Information:
+- Name: {first_name}
+- Brand: {company}
+- Job Title: {job_title}
+
+Focus:
+E-commerce businesses deal with complex inventory, customer support, and order processing. Aurvyz specializes in AI-powered ERPs and automated customer assistants.
+
+Requirements:
+- mention inventory or support automation
+- focus on operational scaling
+- natural and human
+- 120-180 words
+
+Return plain text only.

@@ -1,0 +1,13 @@
+Analyze this company lead and estimate outreach potential.
+
+Inputs:
+- industry: {industry}
+- company size: {company_size}
+- website summary: {website_summary}
+- job title: {job_title}
+
+Return:
+- score from 1-10
+- short reasoning
+
+Return plain text only.

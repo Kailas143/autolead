@@ -1,0 +1,17 @@
+Write a concise cold outreach email for a healthcare clinic or medical practice lead.
+
+Lead Information:
+- Name: {first_name}
+- Clinic: {company}
+- Job Title: {job_title}
+
+Focus:
+Clinics often struggle with patient scheduling, follow-ups, and manual records. Aurvyz builds AI systems that automate these patient workflows.
+
+Requirements:
+- mention patient coordination efficiency
+- focus on reducing manual admin tasks
+- natural and human
+- 120-180 words
+
+Return plain text only.

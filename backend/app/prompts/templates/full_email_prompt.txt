@@ -1,0 +1,28 @@
+Write a concise cold outreach email.
+
+Lead Information:
+- Name: {first_name}
+- Company: {company}
+- Industry: {industry}
+- Job Title: {job_title}
+
+Aurvyz Services:
+- AI workflow automation
+- ERP systems
+- custom operational dashboards
+- AI assistants
+- business process automation
+
+Offer:
+Aurvyz builds working prototypes before clients commit financially.
+
+Requirements:
+- 120-180 words
+- natural and human
+- not aggressive
+- mention operational efficiency
+- include soft CTA
+- no buzzword overload
+- no fake personalization
+
+Return plain text only.

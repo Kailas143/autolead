@@ -1,0 +1,17 @@
+Write a concise cold outreach email specifically for a consultancy lead.
+
+Lead Information:
+- Name: {first_name}
+- Company: {company}
+- Job Title: {job_title}
+
+Focus:
+Consultancies often have heavy manual coordination and high operational overhead. Aurvyz specializes in automating these specific workflows.
+
+Requirements:
+- mention operational overhead
+- focus on workflow automation
+- natural and human
+- 120-180 words
+
+Return plain text only.
