@@ -33,11 +33,13 @@ services:
     restart: always
     privileged: true
     user: root
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
     ports:
       - "8080:8080"
       - "50000:50000"
     volumes:
       - ./jenkins-data:/var/jenkins_home
       - /var/run/docker.sock:/var/run/docker.sock
-      - /snap/docker/current/bin/docker:/usr/bin/docker # Real binary path
-    # No extra libraries needed for this one!
+      - /snap/docker/current/bin/docker:/usr/bin/docker
