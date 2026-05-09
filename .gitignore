@@ -43,3 +43,9 @@ yarn-error.log*
 
 # Docker
 .docker
+
+# DevOps Infrastructure Data
+infrastructure/devops/gitea-data/
+infrastructure/devops/gitea-db/
+infrastructure/devops/jenkins-data/
+
