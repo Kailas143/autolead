@@ -58,8 +58,6 @@ Navigate to the `backend` directory and install dependencies:
 cd backend
 pip install -r requirements.txt
 ```
-
-
 Run the **FastAPI Server**:
 ```bash
 uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
