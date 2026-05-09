@@ -1,0 +1,194 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+The MIT License
+
+Copyright (c) 2004-, Kohsuke Kawaguchi, Sun Microsystems, Inc., and a number of other of contributors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+-->
+<project xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd" xmlns="http://maven.apache.org/POM/4.0.0"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>org.jenkins-ci.plugins</groupId>
+  <artifactId>ec2</artifactId>
+  <version>2049.v127f0f109c29</version>
+  <packaging>hpi</packaging>
+  <name>Amazon EC2 plugin</name>
+  <description>This is a Jenkins plugin to support ephemeral Jenkins agents on Amazon EC2 or other EC2-compatible clouds</description>
+  <url>https://github.com/jenkinsci/ec2-plugin</url>
+  <inceptionYear>2016</inceptionYear>
+  <licenses>
+    <license>
+      <name>The MIT License</name>
+      <url>https://opensource.org/licenses/MIT</url>
+      <distribution>repo</distribution>
+    </license>
+  </licenses>
+  <developers>
+    <developer>
+      <id>thoulen</id>
+      <name>F Manfred Furuholen</name>
+      <email>fabrizio.manfredi@gmail.com</email>
+    </developer>
+    <developer>
+      <id>julienduchesne</id>
+      <name>Julien Duchesne</name>
+      <email>julienduchesne@live.com</email>
+    </developer>
+    <developer>
+      <id>raihaan</id>
+      <name>Raihaan Shouhell</name>
+      <email>raihaanhimself@gmail.com</email>
+    </developer>
+  </developers>
+  <scm>
+    <connection>scm:git:https://github.com/jenkinsci/ec2-plugin.git</connection>
+    <developerConnection>scm:git:git@github.com:jenkinsci/ec2-plugin.git</developerConnection>
+    <tag>127f0f109c299eb125a0bd55451f9b55add7a41b</tag>
+    <url>https://github.com/jenkinsci/ec2-plugin</url>
+  </scm>
+  <distributionManagement>
+    <repository>
+      <id>maven.jenkins-ci.org</id>
+      <url>https://repo.jenkins-ci.org/releases/</url>
+    </repository>
+    <snapshotRepository>
+      <id>maven.jenkins-ci.org</id>
+      <url>https://repo.jenkins-ci.org/snapshots/</url>
+    </snapshotRepository>
+  </distributionManagement>
+  <dependencies>
+    <dependency>
+      <groupId>com.hierynomus</groupId>
+      <artifactId>smbj</artifactId>
+      <version>0.14.0</version>
+      <scope>compile</scope>
+      <exclusions>
+        <exclusion>
+          <groupId>org.bouncycastle</groupId>
+          <artifactId>bcprov-jdk18on</artifactId>
+        </exclusion>
+        <exclusion>
+          <groupId>org.slf4j</groupId>
+          <artifactId>slf4j-api</artifactId>
+        </exclusion>
+      </exclusions>
+    </dependency>
+    <dependency>
+      <groupId>io.jenkins.plugins.aws-java-sdk2</groupId>
+      <artifactId>aws-java-sdk2-core</artifactId>
+      <version>2.31.63-54.vcf1e5a_c56c49</version>
+      <scope>compile</scope>
+    </dependency>
+    <dependency>
+      <groupId>io.jenkins.plugins.aws-java-sdk2</groupId>
+      <artifactId>aws-java-sdk2-ec2</artifactId>
+      <version>2.31.63-54.vcf1e5a_c56c49</version>
+      <scope>compile</scope>
+    </dependency>
+    <dependency>
+      <groupId>io.jenkins.plugins.mina-sshd-api</groupId>
+      <artifactId>mina-sshd-api-core</artifactId>
+      <version>2.14.0-143.v2b_362fc39576</version>
+      <scope>compile</scope>
+    </dependency>
+    <dependency>
+      <groupId>io.jenkins.plugins.mina-sshd-api</groupId>
+      <artifactId>mina-sshd-api-scp</artifactId>
+      <version>2.14.0-143.v2b_362fc39576</version>
+      <scope>compile</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.jenkins-ci.plugins</groupId>
+      <artifactId>apache-httpcomponents-client-4-api</artifactId>
+      <version>4.5.14-269.vfa_2321039a_83</version>
+      <scope>compile</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.jenkins-ci.plugins</groupId>
+      <artifactId>aws-credentials</artifactId>
+      <version>248.v78a_dcfc9db_ff</version>
+      <scope>compile</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.jenkins-ci.plugins</groupId>
+      <artifactId>bouncycastle-api</artifactId>
+      <version>2.30.1.80-261.v00c0e2618ec3</version>
+      <scope>compile</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.jenkins-ci.plugins</groupId>
+      <artifactId>command-launcher</artifactId>
+      <version>123.v37cfdc92ef67</version>
+      <scope>compile</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.jenkins-ci.plugins</groupId>
+      <artifactId>credentials</artifactId>
+      <version>1415.v831096eb_5534</version>
+      <scope>compile</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.jenkins-ci.plugins</groupId>
+      <artifactId>node-iterator-api</artifactId>
+      <version>72.vc90e81737df1</version>
+      <scope>compile</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.jenkins-ci.plugins</groupId>
+      <artifactId>ssh-credentials</artifactId>
+      <version>359.v2191c4cf635f</version>
+      <scope>compile</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.jenkins-ci.plugins.workflow</groupId>
+      <artifactId>workflow-step-api</artifactId>
+      <version>704.ve4f0967e98fa_</version>
+      <scope>compile</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.jenkins-ci.main</groupId>
+      <artifactId>jenkins-core</artifactId>
+      <version>2.479.3</version>
+      <scope>provided</scope>
+    </dependency>
+    <dependency>
+      <groupId>jakarta.servlet</groupId>
+      <artifactId>jakarta.servlet-api</artifactId>
+      <version>5.0.0</version>
+      <scope>provided</scope>
+    </dependency>
+    <dependency>
+      <groupId>commons-logging</groupId>
+      <artifactId>commons-logging</artifactId>
+      <version>1.3.4</version>
+      <scope>provided</scope>
+    </dependency>
+  </dependencies>
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.jenkins-ci.tools</groupId>
+        <artifactId>maven-hpi-plugin</artifactId>
+        <version>3.1746.v2e9fe7dc4d95</version>
+        <extensions>true</extensions>
+      </plugin>
+    </plugins>
+  </build>
+</project>

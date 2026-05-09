@@ -1,0 +1,9 @@
+[core]
+	repositoryformatversion = 0
+	filemode = true
+	bare = true
+[remote "remote_mirror_9aF5bUmPGo"]
+	url = https://Kailas143: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@github.com/Kailas143/autolead.git
+	mirror = true
+	push = +refs/heads/*:refs/heads/*
+	push = +refs/tags/*:refs/tags/*

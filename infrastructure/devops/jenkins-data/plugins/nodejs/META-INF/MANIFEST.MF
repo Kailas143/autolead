@@ -1,0 +1,30 @@
+Manifest-Version: 1.0
+Created-By: Maven Archiver 3.6.4
+Build-Jdk-Spec: 17
+Specification-Title: NodeJS Plugin
+Specification-Version: 1.6
+Implementation-Title: NodeJS Plugin
+Implementation-Version: 1.6.6
+Plugin-Class: jenkins.plugins.nodejs.NodeJSPlugin
+Group-Id: org.jenkins-ci.plugins
+Artifact-Id: nodejs
+Short-Name: nodejs
+Long-Name: NodeJS Plugin
+Url: https://github.com/jenkinsci/nodejs-plugin
+Plugin-Version: 1.6.6
+Hudson-Version: 2.479.3
+Jenkins-Version: 2.479.3
+Plugin-Dependencies: commons-lang3-api:3.18.0-98.v3a_674c06072d,config-f
+ ile-provider:988.v0461fcc2b_9d1,plain-credentials:199.v9f8e1f741799,str
+ ucts:350.v3b_30f09f2363
+Plugin-Developers: Cliffano Subagio:cliffano:blah@cliffano.com,Frédéri
+ c Camblor:fcamblor:fcamblor@gmail.com,Nikolas Falco:nfalco79:nfalco79@h
+ otmail.com
+Plugin-License-Name: MIT License
+Plugin-License-Url: LICENSE.txt
+Plugin-ScmConnection: scm:git:https://github.com/jenkinsci/nodejs-plugin
+ .git
+Plugin-ScmTag: nodejs-1.6.6
+Plugin-ScmUrl: https://github.com/jenkinsci/nodejs-plugin
+Implementation-Build: fcc7123c06f80e001e91d5043cc28869457b39f1
+

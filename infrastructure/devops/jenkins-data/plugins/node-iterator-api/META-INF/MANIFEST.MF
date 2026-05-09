@@ -1,0 +1,25 @@
+Manifest-Version: 1.0
+Created-By: Maven Archiver 3.6.0
+Build-Jdk-Spec: 17
+Specification-Title: Node Iterator API Plugin
+Specification-Version: 0.0
+Implementation-Title: Node Iterator API Plugin
+Implementation-Version: 72.vc90e81737df1
+Group-Id: org.jenkins-ci.plugins
+Artifact-Id: node-iterator-api
+Short-Name: node-iterator-api
+Long-Name: Node Iterator API Plugin
+Url: https://github.com/jenkinsci/node-iterator-api-plugin
+Plugin-Version: 72.vc90e81737df1
+Hudson-Version: 2.479.1
+Jenkins-Version: 2.479.1
+Plugin-Developers: Stephen Connolly:stephenconnolly:
+Support-Dynamic-Loading: true
+Plugin-License-Name: The MIT license
+Plugin-License-Url: http://opensource.org/licenses/MIT
+Plugin-ScmConnection: scm:git:https://github.com/jenkinsci/node-iterator
+ -api-plugin.git
+Plugin-ScmTag: c90e81737df1e6bee8dbd97791dcb0b83c8b6dc9
+Plugin-ScmUrl: https://github.com/jenkinsci/node-iterator-api-plugin
+Implementation-Build: c90e81737df1e6bee8dbd97791dcb0b83c8b6dc9
+

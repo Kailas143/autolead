@@ -1,0 +1,28 @@
+Manifest-Version: 1.0
+Created-By: Maven Archiver 3.6.6
+Java-Version: 17
+Build-Jdk-Spec: 21
+Specification-Title: Gitea Checks plugin
+Specification-Version: 0.0
+Implementation-Title: Gitea Checks plugin
+Implementation-Version: 605.646.vd9b_a_f58150a_6
+Group-Id: io.jenkins.plugins
+Artifact-Id: gitea-checks
+Short-Name: gitea-checks
+Long-Name: Gitea Checks plugin
+Url: https://github.com/jenkinsci/gitea-checks-plugin
+Plugin-Version: 605.646.vd9b_a_f58150a_6
+Hudson-Version: 2.541.3
+Jenkins-Version: 2.541.3
+Plugin-Dependencies: checks-api:402.vca_263b_f200e3,plugin-util-api:6.11
+ 92.v30fe6e2837ff,workflow-cps:4263.vd2edf31c1db_0,workflow-job:1571.vb_
+ 423c255d6d9,credentials:1499.va_f0e811253a_6,gitea:273.vb_78d13f6d9a_d
+Plugin-Developers: 
+Plugin-License-Name: MIT License
+Plugin-License-Url: https://opensource.org/licenses/mit
+Plugin-ScmConnection: scm:git:https://github.com/jenkinsci/gitea-checks-
+ plugin.git
+Plugin-ScmTag: d9baf58150a63141270ad9001ec5b0208b3e22f9
+Plugin-ScmUrl: https://github.com/jenkinsci/gitea-checks-plugin
+Implementation-Build: d9baf58150a63141270ad9001ec5b0208b3e22f9
+

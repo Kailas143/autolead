@@ -1,0 +1,36 @@
+Manifest-Version: 1.0
+Created-By: Maven Archiver 3.6.4
+Build-Jdk-Spec: 21
+Specification-Title: Amazon EC2 plugin
+Specification-Version: 0.0
+Implementation-Title: Amazon EC2 plugin
+Implementation-Version: 2049.v127f0f109c29
+Plugin-Class: hudson.plugins.ec2.PluginImpl
+Group-Id: org.jenkins-ci.plugins
+Artifact-Id: ec2
+Short-Name: ec2
+Long-Name: Amazon EC2 plugin
+Url: https://github.com/jenkinsci/ec2-plugin
+Compatible-Since-Version: 1.45
+Plugin-Version: 2049.v127f0f109c29
+Hudson-Version: 2.479.3
+Jenkins-Version: 2.479.3
+Plugin-Dependencies: aws-java-sdk2-core:2.31.63-54.vcf1e5a_c56c49,aws-ja
+ va-sdk2-ec2:2.31.63-54.vcf1e5a_c56c49,mina-sshd-api-core:2.14.0-143.v2b
+ _362fc39576,mina-sshd-api-scp:2.14.0-143.v2b_362fc39576,workflow-step-a
+ pi:704.ve4f0967e98fa_,apache-httpcomponents-client-4-api:4.5.14-269.vfa
+ _2321039a_83,aws-credentials:248.v78a_dcfc9db_ff,bouncycastle-api:2.30.
+ 1.80-261.v00c0e2618ec3,command-launcher:123.v37cfdc92ef67,credentials:1
+ 415.v831096eb_5534,node-iterator-api:72.vc90e81737df1,ssh-credentials:3
+ 59.v2191c4cf635f
+Plugin-Developers: F Manfred Furuholen:thoulen:fabrizio.manfredi@gmail.c
+ om,Julien Duchesne:julienduchesne:julienduchesne@live.com,Raihaan Shouh
+ ell:raihaan:raihaanhimself@gmail.com
+Plugin-License-Name: The MIT License
+Plugin-License-Url: https://opensource.org/licenses/MIT
+Plugin-ScmConnection: scm:git:https://github.com/jenkinsci/ec2-plugin.gi
+ t
+Plugin-ScmTag: 127f0f109c299eb125a0bd55451f9b55add7a41b
+Plugin-ScmUrl: https://github.com/jenkinsci/ec2-plugin
+Implementation-Build: 127f0f109c299eb125a0bd55451f9b55add7a41b
+

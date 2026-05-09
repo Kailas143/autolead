@@ -1,0 +1,41 @@
+services:
+  # --- Git Server (Gitea) ---
+  gitea-db:
+    image: postgres:15
+    restart: always
+    environment:
+      - POSTGRES_USER=gitea
+      - POSTGRES_PASSWORD=gitea
+      - POSTGRES_DB=gitea
+    volumes:
+      - ./gitea-db:/var/lib/postgresql/data
+
+  gitea:
+    image: gitea/gitea:latest
+    restart: always
+    environment:
+      - GITEA__database__DB_TYPE=postgres
+      - GITEA__database__HOST=gitea-db:5432
+      - GITEA__database__NAME=gitea
+      - GITEA__database__USER=gitea
+      - GITEA__database__PASSWD=gitea
+    ports:
+      - "3000:3000"
+      - "2222:22"
+    volumes:
+      - ./gitea-data:/data
+    depends_on:
+      - gitea-db
+
+  # --- CI/CD (Jenkins) ---
+  jenkins:
+    image: jenkins/jenkins:lts
+    restart: always
+    privileged: true
+    user: root
+    ports:
+      - "8080:8080"
+      - "50000:50000"
+    volumes:
+      - ./jenkins-data:/var/jenkins_home
+      - /var/run/docker.sock:/var/run/docker.sock # Allows Jenkins to run Docker commands

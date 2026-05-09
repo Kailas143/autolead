@@ -1,0 +1,28 @@
+Manifest-Version: 1.0
+Created-By: Maven Archiver 3.6.6
+Java-Version: 17
+Build-Jdk-Spec: 21
+Specification-Title: Amazon Web Services SDK 2 :: Core
+Specification-Version: 2.42
+Implementation-Title: Amazon Web Services SDK 2 :: Core
+Implementation-Version: 2.42.33-70.vd69c0763fa_60
+Group-Id: io.jenkins.plugins.aws-java-sdk2
+Artifact-Id: aws-java-sdk2-core
+Short-Name: aws-java-sdk2-core
+Long-Name: Amazon Web Services SDK 2 :: Core
+Url: https://github.com/jenkinsci/aws-java-sdk2-plugin
+Plugin-Version: 2.42.33-70.vd69c0763fa_60
+Hudson-Version: 2.479.1
+Jenkins-Version: 2.479.1
+Plugin-Dependencies: apache-httpcomponents-client-4-api:4.5.14-269.vfa_2
+ 321039a_83
+Plugin-Developers: 
+Support-Dynamic-Loading: true
+Plugin-License-Name: MIT License
+Plugin-License-Url: https://opensource.org/licenses/MIT
+Plugin-ScmConnection: scm:git:https://github.com/jenkinsci/aws-java-sdk2
+ -plugin.git
+Plugin-ScmTag: d69c0763fa60c665e1559503edb8f91923908df9
+Plugin-ScmUrl: https://github.com/jenkinsci/aws-java-sdk2-plugin
+Implementation-Build: d69c0763fa60c665e1559503edb8f91923908df9
+
