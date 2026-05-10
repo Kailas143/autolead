@@ -45,8 +45,6 @@ export default function InboxPage() {
 
   const fetchReplies = useCallback(async () => {
     try {
-      // Only set loading to true if we're not already loading to avoid cascading renders in useEffect
-      setLoading(prev => (prev ? prev : true));
       const response = await api.get("/replies/");
       setReplies(response.data);
     } catch (error) {

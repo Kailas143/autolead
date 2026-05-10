@@ -31,8 +31,6 @@ export default function LeadsPage() {
 
   const fetchLeads = useCallback(async () => {
     try {
-      // Only set loading to true if we're not already loading to avoid cascading renders in useEffect
-      setLoading(prev => (prev ? prev : true));
       const response = await api.get("/leads/");
       setLeads(response.data);
     } catch (error) {

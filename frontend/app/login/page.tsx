@@ -42,7 +42,7 @@ function LoginContent() {
       setAuth({ id: 0, email, full_name: "User" }, access_token);
       router.push("/dashboard");
     } catch (err: unknown) {
-      const error = err as any;
+      const error = err as { response?: { data?: { detail?: string } } };
       setError(error.response?.data?.detail || "Failed to sign in. Please check your credentials.");
     } finally {
       setLoading(false);
