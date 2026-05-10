@@ -5,7 +5,7 @@ import api from "@/lib/api";
 import { formatDistanceToNow } from "date-fns";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { MessageSquare, User, Calendar, XCircle } from "lucide-react";
+import { MessageSquare, User, Calendar, XCircle, CheckCircle2, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface Lead {
