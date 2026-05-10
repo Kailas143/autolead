@@ -1,6 +1,7 @@
 FROM python:3.12-slim
 
 WORKDIR /app
+ENV PIP_ROOT_USER_ACTION=ignore
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \

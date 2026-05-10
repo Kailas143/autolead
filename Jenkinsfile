@@ -17,7 +17,7 @@ pipeline {
             steps {
                 dir('backend') {
                     echo 'Installing backend dependencies and testing...'
-                    sh 'pip install --no-cache-dir -r requirements.txt'
+                    sh 'pip install --no-cache-dir -r requirements-dev.txt'
                     // sh 'pytest' // Uncomment when you have tests
                 }
             }
