@@ -41,8 +41,9 @@ function LoginContent() {
       const { access_token } = response.data;
       setAuth({ id: 0, email, full_name: "User" }, access_token);
       router.push("/dashboard");
-    } catch (err: any) {
-      setError(err.response?.data?.detail || "Failed to sign in. Please check your credentials.");
+    } catch (err: unknown) {
+      const error = err as any;
+      setError(error.response?.data?.detail || "Failed to sign in. Please check your credentials.");
     } finally {
       setLoading(false);
     }
@@ -110,7 +111,7 @@ function LoginContent() {
           </form>
           
           <div className="mt-6 text-center text-sm">
-            <span className="text-muted-foreground">Don't have an account? </span>
+            <span className="text-muted-foreground">Don&apos;t have an account? </span>
             <Link href="/register" className="text-primary hover:underline font-medium">
               Create one for free
             </Link>

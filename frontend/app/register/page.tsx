@@ -32,8 +32,9 @@ export default function RegisterPage() {
       
       // After registration, redirect to login
       router.push("/login?registered=true");
-    } catch (err: any) {
-      setError(err.response?.data?.detail || "Failed to create account. Please try again.");
+    } catch (err: unknown) {
+      const error = err as any;
+      setError(error.response?.data?.detail || "Failed to create account. Please try again.");
     } finally {
       setLoading(false);
     }

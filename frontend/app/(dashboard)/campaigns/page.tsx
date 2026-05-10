@@ -5,7 +5,6 @@ import SequenceBuilder from "@/components/campaigns/SequenceBuilder";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Send, Clock, CheckCircle2, Play } from "lucide-react";
 
 export default function CampaignsPage() {
   return (

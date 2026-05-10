@@ -5,7 +5,7 @@ import api from "@/lib/api";
 import { formatDistanceToNow } from "date-fns";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { MessageSquare, User, Calendar, CheckCircle2, XCircle, Clock } from "lucide-react";
+import { MessageSquare, User, Calendar, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface Lead {
@@ -45,7 +45,8 @@ export default function InboxPage() {
 
   const fetchReplies = useCallback(async () => {
     try {
-      setLoading(true);
+      // Only set loading to true if we're not already loading to avoid cascading renders in useEffect
+      setLoading(prev => (prev ? prev : true));
       const response = await api.get("/replies/");
       setReplies(response.data);
     } catch (error) {
@@ -108,7 +109,7 @@ export default function InboxPage() {
                       </div>
                       
                       <div className="bg-white/5 rounded-xl p-4 border border-white/10 italic text-sm text-foreground/80 leading-relaxed">
-                        "{reply.message}"
+                        &quot;{reply.message}&quot;
                       </div>
   
                       <div className="flex items-center justify-between text-xs text-muted-foreground">

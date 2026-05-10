@@ -1,6 +1,6 @@
 "use client";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Users, Mail, MousePointer2, MessageSquare, BarChart3 } from "lucide-react";
 
 export default function DashboardPage() {
@@ -8,7 +8,7 @@ export default function DashboardPage() {
     <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-700">
       <div className="flex flex-col gap-1">
         <h1 className="text-3xl font-bold tracking-tight text-white">Welcome back, Aurvyz</h1>
-        <p className="text-muted-foreground">Here's what's happening with your outreach today.</p>
+        <p className="text-muted-foreground">Here&apos;s what&apos;s happening with your outreach today.</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">

@@ -1,10 +1,10 @@
 "use client";
 
 import React, { useState } from "react";
-import { Plus, Trash2, Clock, Mail, Sparkles, ChevronDown, ChevronUp } from "lucide-react";
+import { Plus, Trash2, Clock, Sparkles, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import api from "@/lib/api";
 import { useRouter } from "next/navigation";
@@ -39,7 +39,7 @@ export default function SequenceBuilder() {
     setSteps(steps.filter((s) => s.id !== id));
   };
 
-  const updateStep = (id: string, field: keyof SequenceStep, value: any) => {
+  const updateStep = (id: string, field: keyof SequenceStep, value: string | number) => {
     setSteps(steps.map(s => s.id === id ? { ...s, [field]: value } : s));
   };
 
