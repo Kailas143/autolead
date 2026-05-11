@@ -8,8 +8,14 @@ from contextlib import asynccontextmanager
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Create tables on startup
-    Base.metadata.create_all(bind=engine)
+    # Create tables on startup (Safe mode)
+    try:
+        print("DEBUG: Attempting to create tables...")
+        Base.metadata.create_all(bind=engine)
+        print("DEBUG: Tables created successfully!")
+    except Exception as e:
+        print(f"ERROR: Database connection failed during startup: {str(e)}")
+        print("DEBUG: Continuing startup anyway to allow log access...")
     yield
 
 app = FastAPI(
