@@ -93,18 +93,18 @@ pipeline {
                         credentialsId: env.GCP_SA_CREDENTIALS_ID,
                         variable: 'GOOGLE_APPLICATION_CREDENTIALS'
                     )]) {
-                        sh """
-                            gcloud auth activate-service-account --key-file="${GOOGLE_APPLICATION_CREDENTIALS}"
-                            gcloud auth configure-docker ${env.GAR_REGION}-docker.pkg.dev --quiet
-                            docker tag ${BACKEND_IMAGE}:latest ${registry}/${BACKEND_IMAGE}:${BUILD_NUMBER}
-                            docker tag ${BACKEND_IMAGE}:latest ${registry}/${BACKEND_IMAGE}:latest
-                            docker tag ${FRONTEND_IMAGE}:latest ${registry}/${FRONTEND_IMAGE}:${BUILD_NUMBER}
-                            docker tag ${FRONTEND_IMAGE}:latest ${registry}/${FRONTEND_IMAGE}:latest
-                            docker push ${registry}/${BACKEND_IMAGE}:${BUILD_NUMBER}
-                            docker push ${registry}/${BACKEND_IMAGE}:latest
-                            docker push ${registry}/${FRONTEND_IMAGE}:${BUILD_NUMBER}
-                            docker push ${registry}/${FRONTEND_IMAGE}:latest
-                        """
+                        sh '''
+                            gcloud auth activate-service-account --key-file="$GOOGLE_APPLICATION_CREDENTIALS"
+                            gcloud auth configure-docker ${GAR_REGION}-docker.pkg.dev --quiet
+                            docker tag ${BACKEND_IMAGE}:latest ${GAR_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/${GAR_REPOSITORY}/${BACKEND_IMAGE}:${BUILD_NUMBER}
+                            docker tag ${BACKEND_IMAGE}:latest ${GAR_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/${GAR_REPOSITORY}/${BACKEND_IMAGE}:latest
+                            docker tag ${FRONTEND_IMAGE}:latest ${GAR_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/${GAR_REPOSITORY}/${FRONTEND_IMAGE}:${BUILD_NUMBER}
+                            docker tag ${FRONTEND_IMAGE}:latest ${GAR_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/${GAR_REPOSITORY}/${FRONTEND_IMAGE}:latest
+                            docker push ${GAR_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/${GAR_REPOSITORY}/${BACKEND_IMAGE}:${BUILD_NUMBER}
+                            docker push ${GAR_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/${GAR_REPOSITORY}/${BACKEND_IMAGE}:latest
+                            docker push ${GAR_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/${GAR_REPOSITORY}/${FRONTEND_IMAGE}:${BUILD_NUMBER}
+                            docker push ${GAR_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/${GAR_REPOSITORY}/${FRONTEND_IMAGE}:latest
+                        '''
                     }
                 }
             }
@@ -133,17 +133,17 @@ pipeline {
                         file(credentialsId: env.GCP_SA_CREDENTIALS_ID, variable: 'GOOGLE_APPLICATION_CREDENTIALS'),
                         file(credentialsId: env.BACKEND_ENV_VARS_FILE_CREDENTIALS_ID, variable: 'BACKEND_ENV_FILE')
                     ]) {
-                        sh """
-                            gcloud auth activate-service-account --key-file="${GOOGLE_APPLICATION_CREDENTIALS}"
-                            gcloud config set project ${env.GCP_PROJECT_ID}
-                            gcloud run deploy ${env.BACKEND_SERVICE_NAME} \
-                              --image ${registry}/${BACKEND_IMAGE}:${BUILD_NUMBER} \
-                              --region ${env.CLOUD_RUN_REGION} \
+                        sh '''
+                            gcloud auth activate-service-account --key-file="$GOOGLE_APPLICATION_CREDENTIALS"
+                            gcloud config set project ${GCP_PROJECT_ID}
+                            gcloud run deploy ${BACKEND_SERVICE_NAME} \
+                              --image ${GAR_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/${GAR_REPOSITORY}/${BACKEND_IMAGE}:${BUILD_NUMBER} \
+                              --region ${CLOUD_RUN_REGION} \
                               --platform managed \
                               --allow-unauthenticated \
                               --port 8000 \
-                              --env-vars-file "${BACKEND_ENV_FILE}"
-                        """
+                              --env-vars-file "$BACKEND_ENV_FILE"
+                        '''
                     }
                 }
             }
@@ -173,20 +173,20 @@ pipeline {
                         file(credentialsId: env.BACKEND_ENV_VARS_FILE_CREDENTIALS_ID, variable: 'BACKEND_ENV_FILE')
                     ]) {
                         // Note: We use --no-cpu-throttling for Always-on CPU to ensure the worker keeps processing tasks
-                        sh """
-                            gcloud auth activate-service-account --key-file="${GOOGLE_APPLICATION_CREDENTIALS}"
-                            gcloud config set project ${env.GCP_PROJECT_ID}
-                            gcloud run deploy ${env.WORKER_SERVICE_NAME} \
-                              --image ${registry}/${BACKEND_IMAGE}:${BUILD_NUMBER} \
-                              --region ${env.CLOUD_RUN_REGION} \
+                        sh '''
+                            gcloud auth activate-service-account --key-file="$GOOGLE_APPLICATION_CREDENTIALS"
+                            gcloud config set project ${GCP_PROJECT_ID}
+                            gcloud run deploy ${WORKER_SERVICE_NAME} \
+                              --image ${GAR_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/${GAR_REPOSITORY}/${BACKEND_IMAGE}:${BUILD_NUMBER} \
+                              --region ${CLOUD_RUN_REGION} \
                               --platform managed \
                               --no-allow-unauthenticated \
                               --command "celery" \
                               --args "-A,app.celery_app.celery_app,worker,--loglevel=info" \
                               --no-cpu-throttling \
                               --min-instances 1 \
-                              --env-vars-file "${BACKEND_ENV_FILE}"
-                        """
+                              --env-vars-file "$BACKEND_ENV_FILE"
+                        '''
                     }
                 }
             }
@@ -214,16 +214,16 @@ pipeline {
                         credentialsId: env.GCP_SA_CREDENTIALS_ID,
                         variable: 'GOOGLE_APPLICATION_CREDENTIALS'
                     )]) {
-                        sh """
-                            gcloud auth activate-service-account --key-file="${GOOGLE_APPLICATION_CREDENTIALS}"
-                            gcloud config set project ${env.GCP_PROJECT_ID}
-                            gcloud run deploy ${env.FRONTEND_SERVICE_NAME} \
-                              --image ${registry}/${FRONTEND_IMAGE}:${BUILD_NUMBER} \
-                              --region ${env.CLOUD_RUN_REGION} \
+                        sh '''
+                            gcloud auth activate-service-account --key-file="$GOOGLE_APPLICATION_CREDENTIALS"
+                            gcloud config set project ${GCP_PROJECT_ID}
+                            gcloud run deploy ${FRONTEND_SERVICE_NAME} \
+                              --image ${GAR_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/${GAR_REPOSITORY}/${FRONTEND_IMAGE}:${BUILD_NUMBER} \
+                              --region ${CLOUD_RUN_REGION} \
                               --platform managed \
                               --allow-unauthenticated \
                               --port 3000
-                        """
+                        '''
                     }
                 }
             }

@@ -13,7 +13,9 @@ passlib[bcrypt]==1.7.4
 python-multipart==0.0.6
 email-validator==2.0.0
 httpx==0.28.1
-resend==0.4.0
+resend==2.4.0
+requests>=2.31.0
+urllib3<2.0.0
 google-generativeai==0.8.6
 python-dateutil==2.9.0
 python-slugify==8.0.1

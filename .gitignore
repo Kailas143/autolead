@@ -49,3 +49,5 @@ infrastructure/devops/gitea-data/
 infrastructure/devops/gitea-db/
 infrastructure/devops/jenkins-data/
 
+gcp-key.json
+gcp-key.json
