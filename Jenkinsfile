@@ -182,7 +182,7 @@ pipeline {
                               --platform managed \
                               --no-allow-unauthenticated \
                               --command "celery" \
-                              --args "-A,app.celery_app.celery_app,worker,--loglevel=info" \
+                              --args="-A,app.celery_app.celery_app,worker,--loglevel=info" \
                               --no-cpu-throttling \
                               --min-instances 1 \
                               --env-vars-file "$BACKEND_ENV_FILE"
