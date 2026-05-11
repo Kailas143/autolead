@@ -18,7 +18,7 @@ pipeline {
         BACKEND_ENV_VARS_FILE_CREDENTIALS_ID = "BACKEND_ENV_VARS_FILE_CREDENTIALS_ID"
         
         // Update this with your actual backend Cloud Run URL after the first deployment
-        FRONTEND_API_URL = "https://autolead-backend-gen-lang-client.a.run.app/api/v1"
+        FRONTEND_API_URL = "https://autolead-backend-145662328298.asia-south1.run.app/api/v1"
     }
 
     stages {
