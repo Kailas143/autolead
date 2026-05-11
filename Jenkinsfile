@@ -181,8 +181,8 @@ pipeline {
                               --region ${CLOUD_RUN_REGION} \
                               --platform managed \
                               --no-allow-unauthenticated \
-                              --command "celery" \
-                              --args="-A,app.celery_app.celery_app,worker,--loglevel=info" \
+                              --command "python" \
+                              --args="-m,app.worker_health" \
                               --no-cpu-throttling \
                               --min-instances 1 \
                               --env-vars-file "$BACKEND_ENV_FILE"
