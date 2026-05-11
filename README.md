@@ -27,6 +27,7 @@ Production-ready AI-powered outreach automation platform.
    cd autolead
    ```
 
+
 2. **Set up Environment Variables**:
    Create a `.env` file in the root directory and add the following:
    ```env
