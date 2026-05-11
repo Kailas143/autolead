@@ -101,6 +101,9 @@ class Settings(BaseSettings):
     # AI
     GEMINI_API_KEY: str = ""
     GOOGLE_API_KEY: str = ""
+    
+    # Internal Task Secret
+    CRON_SECRET: str = "super-secret-cron-key"
 
     # Extra settings from .env
     ALLOWED_HOSTS: str = "localhost,127.0.0.1"

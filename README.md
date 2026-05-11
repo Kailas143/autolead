@@ -91,16 +91,55 @@ npm run dev
 
 ## 🚢 Deployment
 
-### Backend (Google Cloud Run)
-1. Build and push the backend image to GCR/AR.
-2. Deploy to Cloud Run with `DATABASE_URL` pointing to your Cloud SQL instance.
+### Google Artifact Registry + Cloud Run
+This repository now includes a production deployment path for:
 
-### Frontend (Vercel)
-1. Connect your repo to Vercel.
-2. Set `NEXT_PUBLIC_API_URL` to your Cloud Run URL.
+GitHub/Gitea -> Jenkins or GitHub Actions -> Docker Build -> Google Artifact Registry -> Cloud Run
 
-### Database (Neon/Postgres)
-1. Set up a PostgreSQL instance on Neon or Google Cloud SQL.
+- `frontend/Dockerfile.prod` builds the Next.js app for production and starts it with Node.
+- `backend/cloudrun.env.yaml.example` shows the backend env vars expected by Cloud Run.
+- `frontend/cloudrun.env.yaml.example` shows an optional frontend env file shape.
+- `Jenkinsfile` can build images, push them to Google Artifact Registry, and deploy backend and frontend services to Cloud Run.
+
+#### Jenkins credentials and variables
+Configure these in Jenkins before enabling deployment:
+
+- `GCP_SA_CREDENTIALS_ID`: Jenkins secret file credential id containing a Google Cloud service account JSON key.
+- `GCP_PROJECT_ID`: Your Google Cloud project id.
+- `BACKEND_ENV_VARS_FILE_CREDENTIALS_ID`: Jenkins secret file credential id containing the backend Cloud Run env vars YAML.
+- `FRONTEND_API_URL`: Public backend API URL used at frontend image build time, for example `https://backend-xyz.a.run.app/api/v1`.
+
+Optional Jenkins environment variables:
+
+- `GAR_REGION`: Defaults to `asia-south1`.
+- `GAR_REPOSITORY`: Defaults to `autolead`.
+- `CLOUD_RUN_REGION`: Defaults to `asia-south1`.
+- `BACKEND_SERVICE_NAME`: Defaults to `autolead-backend`.
+- `FRONTEND_SERVICE_NAME`: Defaults to `autolead-frontend`.
+- `DEPLOY_BRANCH`: Defaults to `main`.
+
+#### Google Cloud preparation
+1. Create an Artifact Registry Docker repository.
+2. Enable the Cloud Run and Artifact Registry APIs.
+3. Create a service account with Artifact Registry write access and Cloud Run admin access.
+4. Store that service account JSON in Jenkins as `GCP_SA_CREDENTIALS_ID`.
+5. Create a Jenkins secret file from [backend/cloudrun.env.yaml.example](/home/dell/autolead/backend/cloudrun.env.yaml.example) filled with real values.
+
+#### Deployment flow
+1. Jenkins builds the backend image from `backend/Dockerfile`.
+2. Jenkins builds the frontend image from `frontend/Dockerfile.prod`, injecting `FRONTEND_API_URL` at build time.
+3. Jenkins authenticates to Google Cloud and pushes both images to Artifact Registry with `${BUILD_NUMBER}` and `latest` tags.
+4. Jenkins deploys the backend image to Cloud Run using the backend env vars file.
+5. Jenkins deploys the frontend image to Cloud Run.
+
+#### Production notes
+- `NEXT_PUBLIC_API_URL` is compiled into the frontend bundle at build time, so set `FRONTEND_API_URL` correctly before the frontend image is built.
+- **Worker**: The backend image is deployed as a second service (`autolead-worker`) with Always-on CPU to process Celery tasks.
+- **Background Tasks**: Instead of Celery Beat, use **Cloud Scheduler** to trigger periodic tasks:
+  1. Create a Cloud Scheduler job (Cron: `0 * * * *`).
+  2. Target: `POST` to `https://your-backend-url/api/v1/campaigns/trigger-follow-ups`.
+  3. Header: `X-Cron-Secret: <your-cron-secret>`.
+- The `CRON_SECRET` must be set in your backend environment variables to match the Cloud Scheduler header.
 
 ---
 

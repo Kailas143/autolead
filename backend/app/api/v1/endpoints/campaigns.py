@@ -5,9 +5,26 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app import schemas, models
 from app.api import deps
-from app.workers.tasks import launch_campaign_task
+from app.workers.tasks import launch_campaign_task, check_follow_ups
+from app.core.config import settings
+from fastapi import Header
 
 router = APIRouter()
+
+@router.post("/trigger-follow-ups")
+def trigger_follow_ups(
+    x_cron_secret: str = Header(None),
+) -> Any:
+    """
+    Internal endpoint to trigger periodic follow-up checks.
+    Usually called by Cloud Scheduler.
+    """
+    if not settings.CRON_SECRET or x_cron_secret != settings.CRON_SECRET:
+        raise HTTPException(status_code=403, detail="Invalid cron secret")
+    
+    check_follow_ups.delay()
+    return {"status": "success", "message": "Follow-up check triggered"}
+
 
 @router.get("/", response_model=List[schemas.Campaign])
 def read_campaigns(

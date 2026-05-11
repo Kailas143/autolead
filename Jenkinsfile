@@ -4,6 +4,21 @@ pipeline {
     environment {
         BACKEND_IMAGE = "autolead-backend"
         FRONTEND_IMAGE = "autolead-frontend"
+        GAR_REGION = "asia-south1"
+        GAR_REPOSITORY = "autolead"
+        CLOUD_RUN_REGION = "asia-south1"
+        BACKEND_SERVICE_NAME = "autolead-backend"
+        WORKER_SERVICE_NAME = "autolead-worker"
+        FRONTEND_SERVICE_NAME = "autolead-frontend"
+        DEPLOY_BRANCH = "main"
+
+        // Deployment Configuration
+        GCP_PROJECT_ID = "gen-lang-client-0898802422"
+        GCP_SA_CREDENTIALS_ID = "GCP_SA_CREDENTIALS_ID"
+        BACKEND_ENV_VARS_FILE_CREDENTIALS_ID = "BACKEND_ENV_VARS_FILE_CREDENTIALS_ID"
+        
+        // Update this with your actual backend Cloud Run URL after the first deployment
+        FRONTEND_API_URL = "https://autolead-backend-gen-lang-client.a.run.app/api/v1"
     }
 
     stages {
@@ -47,7 +62,144 @@ pipeline {
                 echo 'Building final production-ready Docker images...'
                 script {
                     sh "docker build -t ${BACKEND_IMAGE}:latest ./backend"
-                    sh "docker build -t ${FRONTEND_IMAGE}:latest ./frontend"
+                    sh """
+                        docker build \
+                          --build-arg NEXT_PUBLIC_API_URL=${env.FRONTEND_API_URL ?: 'http://127.0.0.1:8000/api/v1'} \
+                          -f ./frontend/Dockerfile.prod \
+                          -t ${FRONTEND_IMAGE}:latest \
+                          ./frontend
+                    """
+                }
+            }
+        }
+
+        stage('Push Images to Artifact Registry') {
+            when {
+                expression {
+                    return env.GCP_PROJECT_ID?.trim() && env.GCP_SA_CREDENTIALS_ID?.trim()
+                }
+            }
+            steps {
+                script {
+                    def registry = "${env.GAR_REGION}-docker.pkg.dev/${env.GCP_PROJECT_ID}/${env.GAR_REPOSITORY}"
+                    withCredentials([file(
+                        credentialsId: env.GCP_SA_CREDENTIALS_ID,
+                        variable: 'GOOGLE_APPLICATION_CREDENTIALS'
+                    )]) {
+                        sh """
+                            gcloud auth activate-service-account --key-file="${GOOGLE_APPLICATION_CREDENTIALS}"
+                            gcloud auth configure-docker ${env.GAR_REGION}-docker.pkg.dev --quiet
+                            docker tag ${BACKEND_IMAGE}:latest ${registry}/${BACKEND_IMAGE}:${BUILD_NUMBER}
+                            docker tag ${BACKEND_IMAGE}:latest ${registry}/${BACKEND_IMAGE}:latest
+                            docker tag ${FRONTEND_IMAGE}:latest ${registry}/${FRONTEND_IMAGE}:${BUILD_NUMBER}
+                            docker tag ${FRONTEND_IMAGE}:latest ${registry}/${FRONTEND_IMAGE}:latest
+                            docker push ${registry}/${BACKEND_IMAGE}:${BUILD_NUMBER}
+                            docker push ${registry}/${BACKEND_IMAGE}:latest
+                            docker push ${registry}/${FRONTEND_IMAGE}:${BUILD_NUMBER}
+                            docker push ${registry}/${FRONTEND_IMAGE}:latest
+                        """
+                    }
+                }
+            }
+        }
+
+        stage('Deploy Backend to Cloud Run') {
+            when {
+                expression {
+                    def hasDeployConfig = env.GCP_PROJECT_ID?.trim() &&
+                        env.GCP_SA_CREDENTIALS_ID?.trim() &&
+                        env.BACKEND_ENV_VARS_FILE_CREDENTIALS_ID?.trim()
+                    def branchMatches = !env.BRANCH_NAME?.trim() || env.BRANCH_NAME == env.DEPLOY_BRANCH
+                    return hasDeployConfig && branchMatches
+                }
+            }
+            steps {
+                script {
+                    def registry = "${env.GAR_REGION}-docker.pkg.dev/${env.GCP_PROJECT_ID}/${env.GAR_REPOSITORY}"
+                    withCredentials([
+                        file(credentialsId: env.GCP_SA_CREDENTIALS_ID, variable: 'GOOGLE_APPLICATION_CREDENTIALS'),
+                        file(credentialsId: env.BACKEND_ENV_VARS_FILE_CREDENTIALS_ID, variable: 'BACKEND_ENV_FILE')
+                    ]) {
+                        sh """
+                            gcloud auth activate-service-account --key-file="${GOOGLE_APPLICATION_CREDENTIALS}"
+                            gcloud config set project ${env.GCP_PROJECT_ID}
+                            gcloud run deploy ${env.BACKEND_SERVICE_NAME} \
+                              --image ${registry}/${BACKEND_IMAGE}:${BUILD_NUMBER} \
+                              --region ${env.CLOUD_RUN_REGION} \
+                              --platform managed \
+                              --allow-unauthenticated \
+                              --port 8000 \
+                              --env-vars-file "${BACKEND_ENV_FILE}"
+                        """
+                    }
+                }
+            }
+        }
+
+        stage('Deploy Worker to Cloud Run') {
+            when {
+                expression {
+                    def hasDeployConfig = env.GCP_PROJECT_ID?.trim() &&
+                        env.GCP_SA_CREDENTIALS_ID?.trim() &&
+                        env.BACKEND_ENV_VARS_FILE_CREDENTIALS_ID?.trim()
+                    def branchMatches = !env.BRANCH_NAME?.trim() || env.BRANCH_NAME == env.DEPLOY_BRANCH
+                    return hasDeployConfig && branchMatches
+                }
+            }
+            steps {
+                script {
+                    def registry = "${env.GAR_REGION}-docker.pkg.dev/${env.GCP_PROJECT_ID}/${env.GAR_REPOSITORY}"
+                    withCredentials([
+                        file(credentialsId: env.GCP_SA_CREDENTIALS_ID, variable: 'GOOGLE_APPLICATION_CREDENTIALS'),
+                        file(credentialsId: env.BACKEND_ENV_VARS_FILE_CREDENTIALS_ID, variable: 'BACKEND_ENV_FILE')
+                    ]) {
+                        // Note: We use --no-cpu-throttling for Always-on CPU to ensure the worker keeps processing tasks
+                        sh """
+                            gcloud auth activate-service-account --key-file="${GOOGLE_APPLICATION_CREDENTIALS}"
+                            gcloud config set project ${env.GCP_PROJECT_ID}
+                            gcloud run deploy ${env.WORKER_SERVICE_NAME} \
+                              --image ${registry}/${BACKEND_IMAGE}:${BUILD_NUMBER} \
+                              --region ${env.CLOUD_RUN_REGION} \
+                              --platform managed \
+                              --no-allow-unauthenticated \
+                              --command "celery" \
+                              --args "-A,app.celery_app.celery_app,worker,--loglevel=info" \
+                              --no-cpu-throttling \
+                              --min-instances 1 \
+                              --env-vars-file "${BACKEND_ENV_FILE}"
+                        """
+                    }
+                }
+            }
+        }
+
+        stage('Deploy Frontend to Cloud Run') {
+            when {
+                expression {
+                    def hasDeployConfig = env.GCP_PROJECT_ID?.trim() &&
+                        env.GCP_SA_CREDENTIALS_ID?.trim()
+                    def branchMatches = !env.BRANCH_NAME?.trim() || env.BRANCH_NAME == env.DEPLOY_BRANCH
+                    return hasDeployConfig && branchMatches
+                }
+            }
+            steps {
+                script {
+                    def registry = "${env.GAR_REGION}-docker.pkg.dev/${env.GCP_PROJECT_ID}/${env.GAR_REPOSITORY}"
+                    withCredentials([file(
+                        credentialsId: env.GCP_SA_CREDENTIALS_ID,
+                        variable: 'GOOGLE_APPLICATION_CREDENTIALS'
+                    )]) {
+                        sh """
+                            gcloud auth activate-service-account --key-file="${GOOGLE_APPLICATION_CREDENTIALS}"
+                            gcloud config set project ${env.GCP_PROJECT_ID}
+                            gcloud run deploy ${env.FRONTEND_SERVICE_NAME} \
+                              --image ${registry}/${FRONTEND_IMAGE}:${BUILD_NUMBER} \
+                              --region ${env.CLOUD_RUN_REGION} \
+                              --platform managed \
+                              --allow-unauthenticated \
+                              --port 3000
+                        """
+                    }
                 }
             }
         }
