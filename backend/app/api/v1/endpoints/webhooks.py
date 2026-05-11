@@ -18,20 +18,25 @@ async def resend_webhook(
     """
     Endpoint for Resend webhooks to track email events.
     """
-    # In production, verify the signature here
-    
     payload = await request.json()
     event_type = payload.get("type")
     data = payload.get("data", {})
-    email_id = data.get("email_id") # Resend's internal ID
+    resend_email_id = data.get("email_id")
     
     if event_type in ["email.opened", "email.clicked"]:
-        email_service.track_webhook_event(db, event_type, email_id)
+        email_service.track_webhook_event(db, event_type, resend_email_id)
         
-    elif event_type == "email.bounced":
-        # Handle bounce: mark lead as invalid or stop campaign
-        pass
-        
+    elif event_type == "email.replied":
+        # Handle reply from Resend's tracking
+        from app.models.email import Email
+        email = db.query(Email).filter(Email.resend_id == resend_email_id).first()
+        if email:
+            email.replied = True
+            lead = db.query(Lead).filter(Lead.id == email.lead_id).first()
+            if lead:
+                lead.status = "replied"
+            db.commit()
+            
     return {"status": "ok"}
 
 @router.post("/reply")
@@ -40,14 +45,17 @@ async def handle_incoming_reply(
     db: Session = Depends(deps.get_db)
 ):
     """
-    Handle incoming email replies (usually forwarded from an inbox or via email provider API).
+    Handle incoming email replies (usually forwarded from an inbox).
     """
     payload = await request.json()
     lead_email = payload.get("from")
     message_body = payload.get("body")
     
-    # 1. Find the lead
-    lead = db.query(Lead).filter(Lead.email == lead_email).first()
+    if not lead_email:
+        raise HTTPException(status_code=400, detail="Missing sender email")
+
+    # 1. Find the lead (case-insensitive)
+    lead = db.query(Lead).filter(Lead.email.ilike(lead_email)).first()
     if not lead:
         return {"status": "lead not found"}
         
@@ -62,10 +70,18 @@ async def handle_incoming_reply(
     )
     db.add(new_reply)
     
-    # 4. Update lead status and stop sequences if needed
+    # 4. Update lead status
     lead.status = "replied"
-    # Logic to stop future emails for this lead in all active campaigns
+    
+    # 5. Mark the most recent email sent to this lead as 'replied'
+    from app.models.email import Email
+    last_email = db.query(Email).filter(
+        Email.lead_id == lead.id
+    ).order_by(Email.sent_at.desc()).first()
+    
+    if last_email:
+        last_email.replied = True
     
     db.commit()
     
-    return {"status": "success", "classification": classification}
+    return {"status": "success", "classification": classification, "lead_id": lead.id}

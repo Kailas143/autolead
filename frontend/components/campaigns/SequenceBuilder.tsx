@@ -19,7 +19,38 @@ interface SequenceStep {
 export default function SequenceBuilder() {
   const router = useRouter();
   const [steps, setSteps] = useState<SequenceStep[]>([
-    { id: "1", subject: "Quick question about {company}", body: "Hi {first_name},\n\n{personalization}\n\nI was looking into your company and...", delay: 0 },
+    { 
+      id: "1", 
+      subject: "Struggling with {industry} manual workflows?", 
+      body: `Hi {first_name},
+
+Hope you’re doing well.
+
+I came across {company} while researching study abroad consultancies and noticed how much coordination these workflows usually involve — student follow-ups, document tracking, counselor communication, appointments, and application stages.
+
+At Aurvyz, we’re currently building intelligent systems designed to simplify and automate operational workflows for consultancies and service businesses.
+
+As part of our research and product exploration, we created a lightweight prototype around consultancy workflow automation — focused on improving visibility, reducing manual follow-ups, and organizing student operations more efficiently.
+
+A few areas we explored:
+• Student inquiry & lead tracking
+• Application stage management
+• Follow-up reminders & workflow automation
+• Centralized student dashboard
+• Internal coordination workflows
+
+Would be happy to share the prototype with you and hear your thoughts from a real consultancy perspective.
+
+Please go through this link : https://aurvyz.com/
+
+No sales pressure — just looking to connect and exchange ideas around operational efficiency in this space.
+
+Best regards,
+Sreekailas v.s
+📩 hello@aurvyz.com
+🌐 www.aurvyz.com`, 
+      delay: 0 
+    },
   ]);
   const [industry, setIndustry] = useState<string>("All Industries");
   const [title, setTitle] = useState<string>("");
@@ -64,10 +95,10 @@ export default function SequenceBuilder() {
 
       const response = await api.post("/campaigns/", payload);
       console.log("Campaign created:", response.data);
-      
+
       // Now launch it
       await api.post(`/campaigns/${response.data.id}/launch`);
-      
+
       alert("Campaign launched successfully!");
       router.push("/dashboard");
     } catch (error) {
@@ -85,9 +116,9 @@ export default function SequenceBuilder() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
           <div className="space-y-2">
             <label className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Campaign Name</label>
-            <Input 
-              placeholder="e.g., Study Abroad Outreach Q2" 
-              className="bg-black/20 border-white/10 h-12" 
+            <Input
+              placeholder="e.g., Study Abroad Outreach Q2"
+              className="bg-black/20 border-white/10 h-12"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
             />
@@ -95,7 +126,7 @@ export default function SequenceBuilder() {
           <div className="space-y-2">
             <label className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Industry Target</label>
             <div className="relative group">
-              <select 
+              <select
                 value={industry}
                 onChange={(e) => setIndustry(e.target.value)}
                 className="w-full h-12 bg-black/20 border border-white/10 rounded-xl px-4 text-sm appearance-none focus:outline-none focus:border-primary/50 transition-all cursor-pointer"
@@ -111,6 +142,26 @@ export default function SequenceBuilder() {
                 <ChevronDown className="w-4 h-4" />
               </div>
             </div>
+          </div>
+        </div>
+      </Card>
+
+      {/* Advanced Settings */}
+      <Card className="border-white/5 bg-white/5 backdrop-blur-sm p-6 mb-8">
+        <div className="flex items-center gap-2 mb-4">
+          <Sparkles className="w-4 h-4 text-primary" />
+          <h3 className="text-sm font-semibold text-white uppercase tracking-widest">Advanced Settings</h3>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          <div className="space-y-2">
+            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Sender Profile</label>
+            <div className="h-12 flex items-center px-4 bg-black/20 border border-white/10 rounded-xl text-sm text-white/70">
+              hello@aurvyz.com
+            </div>
+          </div>
+          <div className="space-y-2">
+            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Daily Send Limit</label>
+            <Input defaultValue="50" className="bg-black/20 border-white/10 h-12" />
           </div>
         </div>
       </Card>
@@ -143,9 +194,9 @@ export default function SequenceBuilder() {
                   </div>
                 )}
               </div>
-              <Button 
-                variant="ghost" 
-                size="icon" 
+              <Button
+                variant="ghost"
+                size="icon"
                 className="text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
                 onClick={() => removeStep(step.id)}
               >
@@ -156,8 +207,8 @@ export default function SequenceBuilder() {
               <div className="space-y-2">
                 <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Subject Line</label>
                 <div className="relative">
-                  <Input 
-                    value={step.subject} 
+                  <Input
+                    value={step.subject}
                     onChange={(e) => updateStep(step.id, "subject", e.target.value)}
                     className="bg-black/20 border-white/10 focus:border-primary/50"
                   />
@@ -166,7 +217,7 @@ export default function SequenceBuilder() {
                   </div>
                 </div>
               </div>
-              
+
               <div className="space-y-2">
                 <div className="flex justify-between items-center">
                   <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Email Body</label>
@@ -175,7 +226,7 @@ export default function SequenceBuilder() {
                     AI Personalize
                   </Button>
                 </div>
-                <textarea 
+                <textarea
                   className="w-full min-h-[150px] bg-black/20 border border-white/10 rounded-xl p-4 text-sm text-white focus:outline-none focus:border-primary/50 transition-colors custom-scrollbar"
                   value={step.body}
                   onChange={(e) => updateStep(step.id, "body", e.target.value)}
@@ -184,7 +235,7 @@ export default function SequenceBuilder() {
 
               <div className="flex flex-wrap gap-2 pt-2">
                 {["{first_name}", "{company}", "{title}", "{personalization}"].map((tag) => (
-                  <button 
+                  <button
                     key={tag}
                     onClick={() => {
                       const newBody = step.body + " " + tag;
@@ -203,8 +254,8 @@ export default function SequenceBuilder() {
 
       <div className="flex justify-end gap-4 pt-6">
         <Button variant="outline" className="rounded-xl border-white/10">Save Draft</Button>
-        <Button 
-          onClick={handleLaunch} 
+        <Button
+          onClick={handleLaunch}
           disabled={isLaunching}
           className="px-8 shadow-lg shadow-primary/20 rounded-xl h-11"
         >

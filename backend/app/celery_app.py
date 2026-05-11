@@ -20,3 +20,11 @@ celery_app.conf.update(
     task_track_started=True,
     task_time_limit=3600,
 )
+
+# Schedule periodic tasks
+celery_app.conf.beat_schedule = {
+    "check-follow-ups-every-hour": {
+        "task": "app.workers.tasks.check_follow_ups",
+        "schedule": 3600.0, # Every hour
+    },
+}

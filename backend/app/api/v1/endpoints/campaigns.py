@@ -1,5 +1,7 @@
 from typing import Any, List
+# pyrefly: ignore [missing-import]
 from fastapi import APIRouter, Depends, HTTPException
+# pyrefly: ignore [missing-import]
 from sqlalchemy.orm import Session
 from app import schemas, models
 from app.api import deps
@@ -38,8 +40,9 @@ def create_campaign(
 
     # Create sequences
     for i, seq_in in enumerate(campaign_in.sequences):
+        sequence_data = seq_in.dict(exclude={"step_number"})
         sequence = models.Sequence(
-            **seq_in.dict(),
+            **sequence_data,
             campaign_id=campaign.id,
             step_number=i + 1
         )

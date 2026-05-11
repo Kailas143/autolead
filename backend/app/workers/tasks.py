@@ -125,12 +125,64 @@ def check_follow_ups():
         active_campaigns = db.query(Campaign).filter(Campaign.status == "active").all()
         
         for campaign in active_campaigns:
-            # 2. Find all sequences for this campaign
-            sequences = db.query(Sequence).filter(Sequence.campaign_id == campaign.id).order_by(Sequence.step_number).all()
+            # 2. Get all sequences for this campaign ordered by step
+            sequences = db.query(Sequence).filter(
+                Sequence.campaign_id == campaign.id
+            ).order_by(Sequence.step_number).all()
             
-            # 3. For each lead in this campaign
-            # (Note: In a large system, we'd use an EmailTracking table to see where they are)
-            # For now, let's keep it simple
-            pass
+            if not sequences:
+                continue
+
+            # Create a map of step_number -> sequence for easy lookup
+            seq_map = {s.step_number: s for s in sequences}
+            max_step = max(seq_map.keys())
+
+            # 3. Find all leads that have received at least one email in this campaign
+            # We group by lead_id and get the latest email
+            from sqlalchemy import func
+            latest_emails_sub = db.query(
+                Email.lead_id,
+                func.max(Email.sent_at).label("latest_sent")
+            ).filter(Email.campaign_id == campaign.id).group_by(Email.lead_id).subquery()
+
+            latest_emails = db.query(Email).join(
+                latest_emails_sub,
+                (Email.lead_id == latest_emails_sub.c.lead_id) & 
+                (Email.sent_at == latest_emails_sub.c.latest_sent)
+            ).all()
+
+            for last_email in latest_emails:
+                # 4. SKIP if lead has replied
+                # Check if ANY email to this lead in this campaign has 'replied' = True
+                has_replied = db.query(Email).filter(
+                    Email.campaign_id == campaign.id,
+                    Email.lead_id == last_email.lead_id,
+                    Email.replied == True
+                ).first()
+
+                if has_replied:
+                    print(f"DEBUG: Skipping follow-up for {last_email.lead_id} - Lead Replied!")
+                    continue
+
+                # 5. Check if there is a next step
+                last_seq = db.query(Sequence).filter(Sequence.id == last_email.sequence_id).first()
+                if not last_seq:
+                    continue
+
+                next_step_num = last_seq.step_number + 1
+                if next_step_num > max_step:
+                    # Campaign finished for this lead
+                    continue
+
+                next_seq = seq_map[next_step_num]
+                
+                # 6. Check if it's time to send
+                wait_until = last_email.sent_at + timedelta(days=next_seq.delay_days)
+                if datetime.utcnow() >= wait_until.replace(tzinfo=None):
+                    print(f"DEBUG: Time for follow-up! Sending Step {next_step_num} to lead {last_email.lead_id}")
+                    send_campaign_email_task.delay(campaign.id, last_email.lead_id, next_seq.id)
+
+    except Exception as e:
+        print(f"ERROR in follow-up engine: {str(e)}")
     finally:
         db.close()

@@ -1,9 +1,37 @@
 "use client";
 
+import React, { useEffect, useState } from "react";
+import api from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Users, Mail, MousePointer2, MessageSquare, BarChart3 } from "lucide-react";
 
 export default function DashboardPage() {
+  const [stats, setStats] = useState({
+    total_leads: "0",
+    total_emails_sent: "0",
+    open_rate: "0%",
+    reply_rate: "0%"
+  });
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const response = await api.get("/analytics/stats");
+        setStats(response.data);
+      } catch (error) {
+        console.error("Failed to fetch stats:", error);
+      }
+    };
+    fetchStats();
+  }, []);
+
+  const statItems = [
+    { name: "Total Leads", value: stats.total_leads, icon: Users, color: "text-blue-500", bg: "bg-blue-500/10" },
+    { name: "Emails Sent", value: stats.total_emails_sent, icon: Mail, color: "text-purple-500", bg: "bg-purple-500/10" },
+    { name: "Open Rate", value: stats.open_rate, icon: MousePointer2, color: "text-emerald-500", bg: "bg-emerald-500/10" },
+    { name: "Reply Rate", value: stats.reply_rate, icon: MessageSquare, color: "text-orange-500", bg: "bg-orange-500/10" },
+  ];
+
   return (
     <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-700">
       <div className="flex flex-col gap-1">
@@ -12,12 +40,7 @@ export default function DashboardPage() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {[
-          { name: "Total Leads", value: "27", icon: Users, color: "text-blue-500", bg: "bg-blue-500/10" },
-          { name: "Emails Sent", value: "0", icon: Mail, color: "text-purple-500", bg: "bg-purple-500/10" },
-          { name: "Open Rate", value: "0%", icon: MousePointer2, color: "text-emerald-500", bg: "bg-emerald-500/10" },
-          { name: "Reply Rate", value: "0%", icon: MessageSquare, color: "text-orange-500", bg: "bg-orange-500/10" },
-        ].map((stat) => (
+        {statItems.map((stat) => (
           <Card key={stat.name} className="border-white/5 bg-white/5 backdrop-blur-sm hover:border-primary/50 transition-all duration-500 group overflow-hidden relative">
             <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
             <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
