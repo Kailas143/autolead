@@ -10,7 +10,7 @@ pipeline {
         BACKEND_SERVICE_NAME = "autolead-backend"
         WORKER_SERVICE_NAME = "autolead-worker"
         FRONTEND_SERVICE_NAME = "autolead-frontend"
-        DEPLOY_BRANCH = "main"
+        DEPLOY_BRANCH = "master"
 
         // Deployment Configuration
         GCP_PROJECT_ID = "gen-lang-client-0898802422"
