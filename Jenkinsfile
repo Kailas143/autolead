@@ -74,6 +74,13 @@ pipeline {
         }
 
         stage('Push Images to Artifact Registry') {
+            agent {
+                docker { 
+                    image 'google/cloud-sdk:latest' 
+                    args '-v /var/run/docker.sock:/var/run/docker.sock'
+                    reuseNode true
+                }
+            }
             when {
                 expression {
                     return env.GCP_PROJECT_ID?.trim() && env.GCP_SA_CREDENTIALS_ID?.trim()
@@ -104,6 +111,12 @@ pipeline {
         }
 
         stage('Deploy Backend to Cloud Run') {
+            agent {
+                docker { 
+                    image 'google/cloud-sdk:latest' 
+                    reuseNode true
+                }
+            }
             when {
                 expression {
                     def hasDeployConfig = env.GCP_PROJECT_ID?.trim() &&
@@ -137,6 +150,12 @@ pipeline {
         }
 
         stage('Deploy Worker to Cloud Run') {
+            agent {
+                docker { 
+                    image 'google/cloud-sdk:latest' 
+                    reuseNode true
+                }
+            }
             when {
                 expression {
                     def hasDeployConfig = env.GCP_PROJECT_ID?.trim() &&
@@ -174,6 +193,12 @@ pipeline {
         }
 
         stage('Deploy Frontend to Cloud Run') {
+            agent {
+                docker { 
+                    image 'google/cloud-sdk:latest' 
+                    reuseNode true
+                }
+            }
             when {
                 expression {
                     def hasDeployConfig = env.GCP_PROJECT_ID?.trim() &&
