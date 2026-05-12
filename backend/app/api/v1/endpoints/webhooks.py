@@ -1,13 +1,86 @@
+import json
+import re
+from html import unescape
+from typing import Any
+
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from sqlalchemy.orm import Session
+
 from app.api import deps
-from app.services.email_service import email_service
-from app.services.ai_service import ai_service
 from app.models.lead import Lead
 from app.models.reply import Reply
-import json
+from app.services.ai_service import ai_service
+from app.services.email_service import email_service
 
 router = APIRouter()
+
+
+def _strip_html(html: str) -> str:
+    text = re.sub(r"(?is)<(script|style).*?>.*?</\1>", " ", html)
+    text = re.sub(r"(?s)<br\s*/?>", "\n", text)
+    text = re.sub(r"(?s)</p\s*>", "\n", text)
+    text = re.sub(r"(?s)<[^>]+>", " ", text)
+    text = unescape(text)
+    text = re.sub(r"\r\n?", "\n", text)
+    text = re.sub(r"[ \t]+", " ", text)
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    return text.strip()
+
+
+def _extract_candidate_text(payload: Any, candidate_keys: tuple[str, ...]) -> str:
+    if isinstance(payload, dict):
+        for key in candidate_keys:
+            value = payload.get(key)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+
+        for value in payload.values():
+            extracted = _extract_candidate_text(value, candidate_keys)
+            if extracted:
+                return extracted
+
+    if isinstance(payload, list):
+        for item in payload:
+            extracted = _extract_candidate_text(item, candidate_keys)
+            if extracted:
+                return extracted
+
+    return ""
+
+
+def _extract_message_body(payload: dict[str, Any]) -> str:
+    data = payload.get("data", {}) if isinstance(payload.get("data"), dict) else {}
+
+    text_candidates = (
+        "text",
+        "body",
+        "plain",
+        "plainText",
+        "plain_text",
+        "textBody",
+        "text_body",
+        "stripped-text",
+        "strippedText",
+        "snippet",
+        "reply",
+    )
+    html_candidates = (
+        "html",
+        "htmlBody",
+        "html_body",
+        "stripped-html",
+        "strippedHtml",
+    )
+
+    text_value = _extract_candidate_text(data or payload, text_candidates)
+    if text_value:
+        return text_value
+
+    html_value = _extract_candidate_text(data or payload, html_candidates)
+    if html_value:
+        return _strip_html(html_value)
+
+    return ""
 
 @router.post("/resend")
 async def resend_webhook(
@@ -54,19 +127,13 @@ async def handle_incoming_reply(
     if payload.get("type") == "email.received":
         data = payload.get("data", {})
         from_header = data.get("from", "")
-        # Try different fields for message body
-        message_body = data.get("text", "") or data.get("html", "") or data.get("body", "")
-        if not message_body:
-            # Check for nested structure if any
-            content = data.get("content", {})
-            if isinstance(content, dict):
-                message_body = content.get("text", "") or content.get("html", "")
+        message_body = _extract_message_body(payload)
         
         print(f"DEBUG: Received Resend email event from {from_header}. Body length: {len(message_body) if message_body else 0}")
     else:
         # Fallback for simple direct POSTs
         from_header = payload.get("from", "")
-        message_body = payload.get("body", "") or payload.get("text", "")
+        message_body = _extract_message_body(payload)
         print(f"DEBUG: Received direct POST from {from_header}. Body length: {len(message_body) if message_body else 0}")
     
     # 1. Parse email address from 'From' header (e.g. "Name <email@addr.com>")
@@ -96,11 +163,6 @@ async def handle_incoming_reply(
     # 4. Robust message body extraction
     subject = payload.get("data", {}).get("subject", "No Subject")
     final_message = message_body.strip() if message_body else ""
-    
-    # If body is still empty, check if it's nested or in 'html'
-    if not final_message and payload.get("type") == "email.received":
-        data = payload.get("data", {})
-        final_message = data.get("text", "") or data.get("html", "")
         
     if not final_message:
         final_message = f"[No body content - Subject: {subject}]"
