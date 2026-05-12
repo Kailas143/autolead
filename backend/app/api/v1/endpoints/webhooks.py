@@ -48,21 +48,35 @@ async def handle_incoming_reply(
     Handle incoming email replies (usually forwarded from an inbox).
     """
     payload = await request.json()
-    lead_email = payload.get("from")
-    message_body = payload.get("body")
+    from_header = payload.get("from", "")
+    message_body = payload.get("body", "")
     
+    # 1. Parse email address from 'From' header (e.g. "Name <email@addr.com>")
+    from email.utils import parseaddr
+    _, lead_email = parseaddr(from_header)
+    
+    if not lead_email:
+        # Fallback if parseaddr fails or header is just the email
+        lead_email = from_header.strip()
+
     if not lead_email:
         raise HTTPException(status_code=400, detail="Missing sender email")
 
-    # 1. Find the lead (case-insensitive)
+    # 2. Find the lead (case-insensitive)
     lead = db.query(Lead).filter(Lead.email.ilike(lead_email)).first()
     if not lead:
+        print(f"DEBUG: Lead not found for email: {lead_email}")
         return {"status": "lead not found"}
         
-    # 2. Classify the reply using AI
-    classification = await ai_service.classify_reply(message_body)
+    # 3. Classify the reply using AI (with fallback)
+    classification = "other"
+    try:
+        classification = await ai_service.classify_reply(message_body)
+    except Exception as e:
+        print(f"ERROR: AI classification failed: {str(e)}")
+        # Continue with 'other' classification so we don't lose the reply
     
-    # 3. Store the reply
+    # 4. Store the reply
     new_reply = Reply(
         lead_id=lead.id,
         message=message_body,
@@ -70,10 +84,10 @@ async def handle_incoming_reply(
     )
     db.add(new_reply)
     
-    # 4. Update lead status
+    # 5. Update lead status
     lead.status = "replied"
     
-    # 5. Mark the most recent email sent to this lead as 'replied'
+    # 6. Mark the most recent email sent to this lead as 'replied'
     from app.models.email import Email
     last_email = db.query(Email).filter(
         Email.lead_id == lead.id

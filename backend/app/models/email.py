@@ -13,6 +13,7 @@ class Email(Base):
     sequence_id = Column(Integer, ForeignKey("sequences.id"), nullable=False)
     subject = Column(String, nullable=False)
     body = Column(Text, nullable=False)
+    resend_id = Column(String, index=True, nullable=True)
     sent_at = Column(DateTime(timezone=True))
     opened = Column(Boolean, default=False)
     clicked = Column(Boolean, default=False)

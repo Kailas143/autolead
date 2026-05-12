@@ -115,6 +115,7 @@ class EmailService:
                 sequence_id=sequence_id,
                 subject=subject,
                 body=plain_body,
+                resend_id=r["id"],
                 sent_at=datetime.utcnow()
             )
             db.add(email_record)
@@ -130,8 +131,7 @@ class EmailService:
         Updates email status based on Resend webhooks.
         """
         # Logic to map Resend's internal ID to our database ID
-        # For simplicity, we assume we have a way to find the email
-        email = db.query(Email).filter(Email.id == email_id).first()
+        email = db.query(Email).filter(Email.resend_id == email_id).first()
         if not email:
             return
 

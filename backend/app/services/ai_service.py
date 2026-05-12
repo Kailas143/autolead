@@ -17,8 +17,8 @@ class AIService:
     def __init__(self):
         api_key = settings.GEMINI_API_KEY or settings.GOOGLE_API_KEY
         genai.configure(api_key=api_key)
-        # Using gemini-3-flash-preview as confirmed available in this environment
-        self.model_name = "gemini-3-flash-preview"
+        # Using gemini-2.5-flash-lite as requested
+        self.model_name = "gemini-2.5-flash-lite"
 
     async def _generate(self, prompt: str, temperature: float = 0.7) -> str:
         """
