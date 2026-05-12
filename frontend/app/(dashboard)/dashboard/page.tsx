@@ -3,26 +3,51 @@
 import React, { useEffect, useState } from "react";
 import api from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Users, Mail, MousePointer2, MessageSquare, BarChart3 } from "lucide-react";
+import { Users, Mail, MousePointer2, MessageSquare, BarChart3, Loader2 } from "lucide-react";
+import { formatDistanceToNow } from "date-fns";
+
+interface Reply {
+  id: number;
+  message: string;
+  classification: string;
+  created_at: string;
+  lead?: {
+    first_name: string;
+    last_name: string;
+    company: string;
+  };
+}
 
 export default function DashboardPage() {
   const [stats, setStats] = useState({
-    total_leads: "0",
-    total_emails_sent: "0",
+    total_leads: 0,
+    total_emails_sent: 0,
     open_rate: "0%",
     reply_rate: "0%"
   });
+  const [recentReplies, setRecentReplies] = useState<Reply[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchStats = async () => {
+    const fetchDashboardData = async () => {
       try {
-        const response = await api.get("/analytics/stats");
-        setStats(response.data);
+        const [statsRes, repliesRes] = await Promise.all([
+          api.get("/analytics/stats"),
+          api.get("/replies/?limit=4")
+        ]);
+        
+        // Use summary from nested API response
+        if (statsRes.data.summary) {
+          setStats(statsRes.data.summary);
+        }
+        setRecentReplies(repliesRes.data);
       } catch (error) {
-        console.error("Failed to fetch stats:", error);
+        console.error("Failed to fetch dashboard data:", error);
+      } finally {
+        setLoading(false);
       }
     };
-    fetchStats();
+    fetchDashboardData();
   }, []);
 
   const statItems = [
@@ -31,6 +56,14 @@ export default function DashboardPage() {
     { name: "Open Rate", value: stats.open_rate, icon: MousePointer2, color: "text-emerald-500", bg: "bg-emerald-500/10" },
     { name: "Reply Rate", value: stats.reply_rate, icon: MessageSquare, color: "text-orange-500", bg: "bg-orange-500/10" },
   ];
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-[70vh]">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-700">
@@ -65,7 +98,7 @@ export default function DashboardPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <Card className="lg:col-span-2 border-white/5 bg-white/5 backdrop-blur-sm">
+        <Card className="lg:col-span-2 border-white/5 bg-white/5 backdrop-blur-sm shadow-2xl">
           <CardHeader className="flex flex-row items-center justify-between">
             <div>
               <CardTitle className="text-lg">Campaign Performance</CardTitle>
@@ -81,31 +114,65 @@ export default function DashboardPage() {
               <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center mb-4">
                 <BarChart3 className="w-6 h-6 text-muted-foreground" />
               </div>
-              <span className="text-sm font-medium text-muted-foreground">Analytics will appear once campaigns start</span>
-              <button className="mt-4 text-xs font-semibold text-primary hover:underline">Launch your first campaign</button>
+              <span className="text-sm font-medium text-muted-foreground">Detailed analytics available in the Analytics tab</span>
+              <button 
+                onClick={() => window.location.href = "/analytics"}
+                className="mt-4 text-xs font-semibold text-primary hover:underline"
+              >
+                View detailed report
+              </button>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="border-white/5 bg-white/5 backdrop-blur-sm">
+        <Card className="border-white/5 bg-white/5 backdrop-blur-sm shadow-2xl">
           <CardHeader>
             <CardTitle className="text-lg">Recent Engagement</CardTitle>
             <p className="text-xs text-muted-foreground mt-1">Latest replies and interested leads.</p>
           </CardHeader>
           <CardContent>
             <div className="space-y-6">
-              {[1, 2, 3].map((i) => (
-                <div key={i} className="flex items-center gap-4 animate-pulse">
-                  <div className="w-10 h-10 rounded-xl bg-white/5" />
-                  <div className="flex-1 space-y-2">
-                    <div className="h-3 w-24 bg-white/5 rounded" />
-                    <div className="h-2 w-full bg-white/5 rounded" />
-                  </div>
+              {recentReplies.length === 0 ? (
+                <div className="pt-4 text-center">
+                  <span className="text-xs text-muted-foreground italic">Monitoring for new activity...</span>
                 </div>
-              ))}
-              <div className="pt-4 text-center">
-                <span className="text-xs text-muted-foreground">Monitoring for new activity...</span>
-              </div>
+              ) : (
+                recentReplies.map((reply) => (
+                  <div key={reply.id} className="flex items-start gap-4 group">
+                    <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                      <Users className="w-5 h-5 text-primary" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between mb-1">
+                        <p className="text-xs font-bold text-white truncate">
+                          {reply.lead ? `${reply.lead.first_name} ${reply.lead.last_name}` : "Lead"}
+                        </p>
+                        <span className="text-[10px] text-muted-foreground">
+                          {formatDistanceToNow(new Date(reply.created_at))} ago
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground line-clamp-1 italic">
+                        &quot;{reply.message}&quot;
+                      </p>
+                      <div className="mt-1">
+                        <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 capitalize font-medium">
+                          {reply.classification.replace("_", " ")}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+              {recentReplies.length > 0 && (
+                <div className="pt-4 text-center border-t border-white/5">
+                  <button 
+                    onClick={() => window.location.href = "/inbox"}
+                    className="text-xs font-semibold text-primary hover:underline"
+                  >
+                    View all in Inbox
+                  </button>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
