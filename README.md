@@ -86,9 +86,16 @@ npm run dev
 ```
 
 4. **Access the platform**:
-   - Frontend: [http://localhost:3000](http://localhost:3000)
-   - Backend API: [http://localhost:8000](http://localhost:8000)
-   - API Docs: [http://localhost:8000/docs](http://localhost:8000/docs)
+
+### 🌐 Production
+- **Frontend**: [https://autolead-frontend-145662328298.asia-south1.run.app](https://autolead-frontend-145662328298.asia-south1.run.app)
+- **Backend API**: [https://autolead-backend-145662328298.asia-south1.run.app](https://autolead-backend-145662328298.asia-south1.run.app)
+- **API Docs**: [https://autolead-backend-145662328298.asia-south1.run.app/docs](https://autolead-backend-145662328298.asia-south1.run.app/docs)
+
+### 💻 Local Development
+- **Frontend**: [http://localhost:3000](http://localhost:3000)
+- **Backend API**: [http://localhost:8000](http://localhost:8000)
+- **API Docs**: [http://localhost:8000/docs](http://localhost:8000/docs)
 
 ## 🚢 Deployment
 
