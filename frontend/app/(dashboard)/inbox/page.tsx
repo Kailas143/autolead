@@ -7,7 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { 
   MessageSquare, User, Calendar, XCircle, 
-  CheckCircle2, Clock, Mail, ChevronRight 
+  CheckCircle2, Clock, Mail
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -17,7 +17,6 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface Lead {
   id: number;

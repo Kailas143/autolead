@@ -24,8 +24,28 @@ import {
 
 const COLORS = ["#10b981", "#ef4444", "#3b82f6", "#8b5cf6", "#f59e0b"];
 
+interface AnalyticsData {
+  summary: {
+    total_leads: number;
+    total_emails_sent: number;
+    total_opens: number;
+    open_rate: string;
+    total_replies: number;
+    reply_rate: string;
+  };
+  sentiment: Array<{ name: string; value: number }>;
+  engagement: Array<{ date: string; sent: number; opens: number }>;
+  top_sequences: Array<{
+    subject: string;
+    sent: number;
+    opens: number;
+    replies: number;
+    reply_rate: string;
+  }>;
+}
+
 export default function AnalyticsPage() {
-  const [data, setData] = useState<any>(null);
+  const [data, setData] = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -51,6 +71,7 @@ export default function AnalyticsPage() {
   }
 
   const summary = data?.summary || {
+    total_leads: 0,
     total_emails_sent: 0,
     total_opens: 0,
     total_replies: 0,
@@ -146,7 +167,7 @@ export default function AnalyticsPage() {
                     paddingAngle={5}
                     dataKey="value"
                   >
-                    {data?.sentiment?.map((entry: any, index: number) => (
+                    {data?.sentiment?.map((_entry, index) => (
                       <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                     ))}
                   </Pie>
@@ -179,7 +200,7 @@ export default function AnalyticsPage() {
                 </tr>
               </thead>
               <tbody className="text-sm">
-                {data?.top_sequences?.map((seq: any, index: number) => (
+                {data?.top_sequences?.map((seq, index) => (
                   <tr key={index} className="border-b border-border/50 hover:bg-white/5 transition-colors">
                     <td className="py-4 px-4 font-medium text-foreground">{seq.subject}</td>
                     <td className="py-4 px-4 text-muted-foreground">{seq.sent}</td>
