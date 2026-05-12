@@ -5,14 +5,36 @@ import api from "@/lib/api";
 import { formatDistanceToNow } from "date-fns";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { MessageSquare, User, Calendar, XCircle, CheckCircle2, Clock } from "lucide-react";
+import { 
+  MessageSquare, User, Calendar, XCircle, 
+  CheckCircle2, Clock, Mail, ChevronRight 
+} from "lucide-react";
 import { cn } from "@/lib/utils";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface Lead {
+  id: number;
   first_name: string;
   last_name: string;
   company: string;
   email: string;
+}
+
+interface ThreadItem {
+  type: "sent" | "received";
+  id: number;
+  subject: string;
+  content: string;
+  timestamp: string;
+  status?: string;
+  classification?: string;
 }
 
 interface Reply {
@@ -20,6 +42,7 @@ interface Reply {
   message: string;
   classification: string;
   created_at: string;
+  lead_id: number;
   lead?: Lead;
 }
 
@@ -42,6 +65,12 @@ const getClassificationConfig = (classification: string) => {
 export default function InboxPage() {
   const [replies, setReplies] = useState<Reply[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  // Thread state
+  const [selectedThread, setSelectedThread] = useState<ThreadItem[]>([]);
+  const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
+  const [isThreadOpen, setIsThreadOpen] = useState(false);
+  const [loadingThread, setLoadingThread] = useState(false);
 
   const fetchReplies = useCallback(async () => {
     try {
@@ -69,8 +98,21 @@ export default function InboxPage() {
     window.location.href = mailto;
   };
 
-  const handleViewThread = (_reply: Reply) => {
-    alert("Thread view is coming soon! You can reply directly to the lead in the meantime.");
+  const handleViewThread = async (reply: Reply) => {
+    if (!reply.lead_id) return;
+    
+    setLoadingThread(true);
+    setIsThreadOpen(true);
+    try {
+      const response = await api.get(`/leads/${reply.lead_id}/thread`);
+      setSelectedThread(response.data.thread);
+      setSelectedLead(response.data.lead);
+    } catch (error) {
+      console.error("Failed to fetch thread:", error);
+      alert("Failed to load thread.");
+    } finally {
+      setLoadingThread(false);
+    }
   };
 
   return (
@@ -150,6 +192,74 @@ export default function InboxPage() {
           })
         )}
       </div>
+
+      {/* Thread Dialog */}
+      <Dialog open={isThreadOpen} onOpenChange={setIsThreadOpen}>
+        <DialogContent className="sm:max-w-2xl max-h-[80vh] flex flex-col p-0 overflow-hidden">
+          <DialogHeader className="p-6 border-b bg-card">
+            <DialogTitle className="flex items-center gap-2">
+              <Mail className="w-5 h-5 text-primary" />
+              Conversation with {selectedLead ? `${selectedLead.first_name} ${selectedLead.last_name}` : "Lead"}
+            </DialogTitle>
+            <DialogDescription>
+              Full outreach and reply history for {selectedLead?.company}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-muted/30">
+            {loadingThread ? (
+              <div className="flex items-center justify-center h-40 text-muted-foreground">
+                <Clock className="w-5 h-5 animate-spin mr-2" />
+                Loading conversation...
+              </div>
+            ) : selectedThread.length === 0 ? (
+              <div className="text-center py-12 text-muted-foreground">
+                No messages found in this thread.
+              </div>
+            ) : (
+              selectedThread.map((item, index) => (
+                <div key={index} className={cn(
+                  "flex flex-col gap-2 max-w-[85%]",
+                  item.type === "sent" ? "ml-auto items-end" : "mr-auto items-start"
+                )}>
+                  <div className="flex items-center gap-2 text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">
+                    <span>{formatDistanceToNow(new Date(item.timestamp))} ago</span>
+                    {item.type === "sent" && (
+                      <Badge variant="outline" className="px-1 py-0 text-[9px] h-4">
+                        {item.status}
+                      </Badge>
+                    )}
+                  </div>
+                  <div className={cn(
+                    "p-4 rounded-2xl text-sm leading-relaxed",
+                    item.type === "sent" 
+                      ? "bg-primary text-primary-foreground rounded-tr-none shadow-lg shadow-primary/10" 
+                      : "bg-card border border-border/50 rounded-tl-none shadow-sm"
+                  )}>
+                    {item.type === "received" && (
+                      <div className="flex items-center gap-1.5 mb-2">
+                        <Badge className={cn("text-[9px] px-1.5 py-0 h-4", getClassificationConfig(item.classification!).color)}>
+                          {item.classification?.replace("_", " ")}
+                        </Badge>
+                      </div>
+                    )}
+                    <div className="whitespace-pre-wrap">{item.content}</div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+          
+          <div className="p-4 border-t bg-card flex justify-end">
+            <button 
+              onClick={() => setIsThreadOpen(false)}
+              className="text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Close
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

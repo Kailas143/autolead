@@ -56,3 +56,50 @@ def read_lead_by_id(
     if not lead:
         raise HTTPException(status_code=404, detail="Lead not found")
     return lead
+
+@router.get("/{lead_id}/thread")
+def read_lead_thread(
+    lead_id: int,
+    db: Session = Depends(deps.get_db),
+    current_user: models.User = Depends(deps.get_current_active_user),
+) -> Any:
+    """
+    Get all sent emails and received replies for a lead, ordered by date.
+    """
+    lead = db.query(models.Lead).filter(models.Lead.id == lead_id, models.Lead.user_id == current_user.id).first()
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead not found")
+
+    # Fetch sent emails
+    emails = db.query(models.Email).filter(models.Email.lead_id == lead_id).all()
+    # Fetch received replies
+    replies = db.query(models.Reply).filter(models.Reply.lead_id == lead_id).all()
+
+    # Combine and sort
+    thread = []
+    for e in emails:
+        thread.append({
+            "type": "sent",
+            "id": e.id,
+            "subject": e.subject,
+            "content": e.body,
+            "timestamp": e.sent_at,
+            "status": "opened" if e.opened else ("sent" if not e.opened else "clicked")
+        })
+    
+    for r in replies:
+        thread.append({
+            "type": "received",
+            "id": r.id,
+            "subject": f"Re: {lead.company}", # Fallback
+            "content": r.message,
+            "timestamp": r.created_at,
+            "classification": r.classification
+        })
+
+    thread.sort(key=lambda x: x["timestamp"])
+    
+    return {
+        "lead": lead,
+        "thread": thread
+    }
