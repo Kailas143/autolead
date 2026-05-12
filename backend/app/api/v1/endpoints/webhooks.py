@@ -76,34 +76,35 @@ async def handle_incoming_reply(
         print(f"DEBUG: Lead not found for email: {lead_email}")
         return {"status": "lead not found"}
         
-    # 3. Classify the reply using AI (with fallback)
+    # 3. Find the most recent email sent to this lead to link the reply
+    from app.models.email import Email
+    last_email = db.query(Email).filter(
+        Email.lead_id == lead.id
+    ).order_by(Email.sent_at.desc()).first()
+
+    # 4. Classify the reply using AI (with fallback)
     classification = "other"
     try:
         classification = await ai_service.classify_reply(message_body)
     except Exception as e:
         print(f"ERROR: AI classification failed: {str(e)}")
-        # Continue with 'other' classification so we don't lose the reply
     
-    # 4. Store the reply
+    # 5. Store the reply
     new_reply = Reply(
         lead_id=lead.id,
-        message=message_body,
+        email_id=last_email.id if last_email else None,
+        message=message_body or f"[No body content - Subject: {payload.get('data', {}).get('subject', 'No Subject')}]",
         classification=classification
     )
     db.add(new_reply)
     
-    # 5. Update lead status
+    # 6. Update lead status
     lead.status = "replied"
     
-    # 6. Mark the most recent email sent to this lead as 'replied'
-    from app.models.email import Email
-    last_email = db.query(Email).filter(
-        Email.lead_id == lead.id
-    ).order_by(Email.sent_at.desc()).first()
-    
+    # 7. Mark the email record as replied
     if last_email:
         last_email.replied = True
     
     db.commit()
     
-    return {"status": "success", "classification": classification, "lead_id": lead.id}
+    return {"status": "success", "classification": classification, "reply_id": new_reply.id}
