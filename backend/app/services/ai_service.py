@@ -17,8 +17,8 @@ class AIService:
     def __init__(self):
         api_key = settings.GEMINI_API_KEY or settings.GOOGLE_API_KEY
         genai.configure(api_key=api_key)
-        # Using gemini-2.5-flash-lite as requested
-        self.model_name = "gemini-2.5-flash-lite"
+        # Using gemini-2.5-flash as requested
+        self.model_name = "gemini-2.5-flash"
 
     async def _generate(self, prompt: str, temperature: float = 0.7) -> str:
         """
@@ -96,11 +96,14 @@ class AIService:
         """
         Classifies an email reply into: interested, not_interested, later, booked_call.
         """
+        if not email_body or len(email_body.strip()) < 2:
+            return "other"
+            
         prompt = REPLY_CLASSIFIER_PROMPT.format(reply_text=email_body)
         classification = await self._generate(prompt, temperature=0.1)
         
         # Clean up classification
-        classification = classification.lower().strip().replace(" ", "_")
+        classification = classification.lower().strip().replace(" ", "_").replace(".", "")
         
         valid_classifications = ["interested", "not_interested", "later", "booked_call"]
         if classification in valid_classifications:

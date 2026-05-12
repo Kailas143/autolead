@@ -54,10 +54,12 @@ async def handle_incoming_reply(
         data = payload.get("data", {})
         from_header = data.get("from", "")
         message_body = data.get("text", "") or data.get("html", "")
+        print(f"DEBUG: Received Resend email event from {from_header}. Body length: {len(message_body) if message_body else 0}")
     else:
         # Fallback for simple direct POSTs
         from_header = payload.get("from", "")
         message_body = payload.get("body", "")
+        print(f"DEBUG: Received direct POST from {from_header}. Body length: {len(message_body) if message_body else 0}")
     
     # 1. Parse email address from 'From' header (e.g. "Name <email@addr.com>")
     from email.utils import parseaddr
@@ -68,6 +70,7 @@ async def handle_incoming_reply(
         lead_email = from_header.strip()
 
     if not lead_email:
+        print(f"ERROR: Missing sender email in payload: {json.dumps(payload)}")
         raise HTTPException(status_code=400, detail="Missing sender email")
 
     # 2. Find the lead (case-insensitive)
@@ -82,18 +85,32 @@ async def handle_incoming_reply(
         Email.lead_id == lead.id
     ).order_by(Email.sent_at.desc()).first()
 
-    # 4. Classify the reply using AI (with fallback)
+    # 4. Robust message body extraction
+    subject = payload.get("data", {}).get("subject", "No Subject")
+    final_message = message_body.strip() if message_body else ""
+    
+    # If body is still empty, check if it's nested or in 'html'
+    if not final_message and payload.get("type") == "email.received":
+        data = payload.get("data", {})
+        final_message = data.get("text", "") or data.get("html", "")
+        
+    if not final_message:
+        final_message = f"[No body content - Subject: {subject}]"
+
+    # 5. Classify the reply using AI (with fallback)
     classification = "other"
     try:
-        classification = await ai_service.classify_reply(message_body)
+        # Pass the message or subject to the classifier
+        text_to_classify = message_body.strip() if (message_body and message_body.strip()) else subject
+        classification = await ai_service.classify_reply(text_to_classify)
     except Exception as e:
         print(f"ERROR: AI classification failed: {str(e)}")
     
-    # 5. Store the reply
+    # 6. Store the reply
     new_reply = Reply(
         lead_id=lead.id,
         email_id=last_email.id if last_email else None,
-        message=message_body or f"[No body content - Subject: {payload.get('data', {}).get('subject', 'No Subject')}]",
+        message=final_message,
         classification=classification
     )
     db.add(new_reply)

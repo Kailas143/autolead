@@ -12,6 +12,7 @@ interface Lead {
   first_name: string;
   last_name: string;
   company: string;
+  email: string;
 }
 
 interface Reply {
@@ -23,15 +24,14 @@ interface Reply {
 }
 
 const getClassificationConfig = (classification: string) => {
-  switch (classification?.toLowerCase()) {
+  const normalized = classification?.toLowerCase()?.replace(/_/g, " ");
+  switch (normalized) {
     case "interested":
       return { color: "text-emerald-500 bg-emerald-500/10 border-emerald-500/20", icon: CheckCircle2 };
-    case "not_interested":
     case "not interested":
       return { color: "text-destructive bg-destructive/10 border-destructive/20", icon: XCircle };
     case "later":
       return { color: "text-blue-500 bg-blue-500/10 border-blue-500/20", icon: Clock };
-    case "booked_call":
     case "booked call":
       return { color: "text-purple-500 bg-purple-500/10 border-purple-500/20", icon: Calendar };
     default:
@@ -55,9 +55,22 @@ export default function InboxPage() {
   }, []);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchReplies();
   }, [fetchReplies]);
+
+  const handleReply = (reply: Reply) => {
+    if (!reply.lead?.email) {
+      alert("No email found for this lead.");
+      return;
+    }
+    const subject = `Re: ${reply.message.substring(0, 50)}...`;
+    const mailto = `mailto:${reply.lead.email}?subject=${encodeURIComponent(subject)}`;
+    window.location.href = mailto;
+  };
+
+  const handleViewThread = (reply: Reply) => {
+    alert("Thread view is coming soon! You can reply directly to the lead in the meantime.");
+  };
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -114,8 +127,18 @@ export default function InboxPage() {
                       <div className="flex items-center justify-between text-xs text-muted-foreground">
                         <span>Received {formatDistanceToNow(new Date(reply.created_at))} ago</span>
                         <div className="flex gap-4">
-                          <button className="hover:text-primary transition-colors">View Thread</button>
-                          <button className="hover:text-primary transition-colors">Reply Now</button>
+                          <button 
+                            onClick={() => handleViewThread(reply)}
+                            className="hover:text-primary transition-colors cursor-pointer"
+                          >
+                            View Thread
+                          </button>
+                          <button 
+                            onClick={() => handleReply(reply)}
+                            className="hover:text-primary transition-colors cursor-pointer"
+                          >
+                            Reply Now
+                          </button>
                         </div>
                       </div>
                     </div>
