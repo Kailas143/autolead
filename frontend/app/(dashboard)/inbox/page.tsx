@@ -55,6 +55,7 @@ export default function InboxPage() {
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchReplies();
   }, [fetchReplies]);
 
@@ -68,7 +69,7 @@ export default function InboxPage() {
     window.location.href = mailto;
   };
 
-  const handleViewThread = (reply: Reply) => {
+  const handleViewThread = (_reply: Reply) => {
     alert("Thread view is coming soon! You can reply directly to the lead in the meantime.");
   };
 
