@@ -122,8 +122,10 @@ class EmailService:
             db.commit()
             db.refresh(email_record)
             
+            print(f"DEBUG: Successfully saved email to database. ID: {email_record.id}, Resend ID: {r['id']}")
             return {"status": "success", "email_id": email_record.id, "resend_id": r["id"]}
         except Exception as e:
+            print(f"ERROR: Failed to save email to database: {str(e)}")
             return {"status": "error", "message": str(e)}
 
     def track_webhook_event(self, db: Session, event_type: str, email_id: str):
