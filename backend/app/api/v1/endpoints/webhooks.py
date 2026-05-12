@@ -48,8 +48,16 @@ async def handle_incoming_reply(
     Handle incoming email replies (usually forwarded from an inbox).
     """
     payload = await request.json()
-    from_header = payload.get("from", "")
-    message_body = payload.get("body", "")
+    
+    # Check if this is a Resend 'email.received' event structure
+    if payload.get("type") == "email.received":
+        data = payload.get("data", {})
+        from_header = data.get("from", "")
+        message_body = data.get("text", "") or data.get("html", "")
+    else:
+        # Fallback for simple direct POSTs
+        from_header = payload.get("from", "")
+        message_body = payload.get("body", "")
     
     # 1. Parse email address from 'From' header (e.g. "Name <email@addr.com>")
     from email.utils import parseaddr

@@ -101,6 +101,7 @@ class EmailService:
         params = {
             "from": f"{settings.EMAIL_FROM_NAME} <{settings.EMAIL_FROM}>",
             "to": [lead.email],
+            "reply_to": "reply@ulduudiitu.resend.app",
             "subject": subject,
             "html": html_body,
         }
