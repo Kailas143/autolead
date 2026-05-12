@@ -27,21 +27,27 @@ interface Campaign {
 export default function CampaignsPage() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [loading, setLoading] = useState(true);
-
-  const fetchCampaigns = async () => {
-    try {
-      const response = await api.get("/campaigns/");
-      setCampaigns(response.data);
-    } catch (error) {
-      console.error("Failed to fetch campaigns:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    fetchCampaigns();
+    setMounted(true);
   }, []);
+
+  useEffect(() => {
+    if (!mounted) return;
+
+    const fetchCampaigns = async () => {
+      try {
+        const response = await api.get("/campaigns/");
+        setCampaigns(response.data);
+      } catch (error) {
+        console.error("Failed to fetch campaigns:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchCampaigns();
+  }, [mounted]);
 
   const CampaignCard = ({ campaign }: { campaign: Campaign }) => (
     <Card key={campaign.id} className="border-border/50 bg-card/30 backdrop-blur-sm hover:border-primary/50 transition-all duration-300 group">
@@ -106,6 +112,8 @@ export default function CampaignsPage() {
       </CardContent>
     </Card>
   );
+
+  if (!mounted) return null;
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">

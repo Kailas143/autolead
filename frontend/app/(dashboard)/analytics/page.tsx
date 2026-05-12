@@ -85,6 +85,11 @@ export default function AnalyticsPage() {
 
   useEffect(() => {
     setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!mounted) return;
+
     const fetchAnalytics = async () => {
       try {
         const response = await api.get("/analytics/stats");
@@ -96,7 +101,7 @@ export default function AnalyticsPage() {
       }
     };
     fetchAnalytics();
-  }, []);
+  }, [mounted]);
 
   if (!mounted || loading) {
     return (

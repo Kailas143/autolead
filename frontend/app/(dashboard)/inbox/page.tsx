@@ -64,12 +64,17 @@ const getClassificationConfig = (classification: string) => {
 export default function InboxPage() {
   const [replies, setReplies] = useState<Reply[]>([]);
   const [loading, setLoading] = useState(true);
+  const [mounted, setMounted] = useState(false);
   
   // Thread state
   const [selectedThread, setSelectedThread] = useState<ThreadItem[]>([]);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [isThreadOpen, setIsThreadOpen] = useState(false);
   const [loadingThread, setLoadingThread] = useState(false);
+  
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const fetchReplies = useCallback(async () => {
     try {
@@ -83,9 +88,10 @@ export default function InboxPage() {
   }, []);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    fetchReplies();
-  }, [fetchReplies]);
+    if (mounted) {
+      fetchReplies();
+    }
+  }, [mounted, fetchReplies]);
 
   const handleReply = (reply: Reply) => {
     if (!reply.lead?.email) {
