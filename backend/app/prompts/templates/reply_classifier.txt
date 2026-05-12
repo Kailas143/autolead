@@ -1,12 +1,13 @@
 Classify the following email reply into ONE category only:
 
 Categories:
-- interested
-- not_interested
-- later
-- booked_call
+- interested: Positive response, asking for more info, willing to chat, or providing positive feedback.
+- not_interested: Explicit refusal, "stop", "unsubscribe", "not interested", "no thanks", "take me off the list", or generally negative sentiment/rejection.
+- later: "out of office", "check back next month", "busy right now", "follow up in [time]".
+- booked_call: Already scheduled, "let's meet at [time]", "I've booked a slot", or confirmation of a meeting.
+- other: If the message is ambiguous, doesn't fit the above, or is JUST a subject line (like "Re: ...") with no body content.
 
-Reply:
+Reply Text:
 {reply_text}
 
-Return ONLY the category name.
+Return ONLY the category name in lowercase. Be conservative: if you are not sure if they are interested, return 'other'.

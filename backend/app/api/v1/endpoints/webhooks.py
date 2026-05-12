@@ -48,17 +48,25 @@ async def handle_incoming_reply(
     Handle incoming email replies (usually forwarded from an inbox).
     """
     payload = await request.json()
+    print(f"DEBUG: Webhook payload: {json.dumps(payload)}")
     
     # Check if this is a Resend 'email.received' event structure
     if payload.get("type") == "email.received":
         data = payload.get("data", {})
         from_header = data.get("from", "")
-        message_body = data.get("text", "") or data.get("html", "")
+        # Try different fields for message body
+        message_body = data.get("text", "") or data.get("html", "") or data.get("body", "")
+        if not message_body:
+            # Check for nested structure if any
+            content = data.get("content", {})
+            if isinstance(content, dict):
+                message_body = content.get("text", "") or content.get("html", "")
+        
         print(f"DEBUG: Received Resend email event from {from_header}. Body length: {len(message_body) if message_body else 0}")
     else:
         # Fallback for simple direct POSTs
         from_header = payload.get("from", "")
-        message_body = payload.get("body", "")
+        message_body = payload.get("body", "") or payload.get("text", "")
         print(f"DEBUG: Received direct POST from {from_header}. Body length: {len(message_body) if message_body else 0}")
     
     # 1. Parse email address from 'From' header (e.g. "Name <email@addr.com>")
