@@ -1,4 +1,4 @@
-from typing import Any, List
+from typing import Any, List, Dict
 # pyrefly: ignore [missing-import]
 from fastapi import APIRouter, Depends, HTTPException
 # pyrefly: ignore [missing-import]
@@ -26,7 +26,7 @@ def trigger_follow_ups(
     return {"status": "success", "message": "Follow-up check triggered"}
 
 
-@router.get("/", response_model=List[schemas.Campaign])
+@router.get("/", response_model=List[Dict[str, Any]])
 def read_campaigns(
     db: Session = Depends(deps.get_db),
     skip: int = 0,
@@ -34,10 +34,44 @@ def read_campaigns(
     current_user: models.User = Depends(deps.get_current_active_user),
 ) -> Any:
     """
-    Retrieve campaigns.
+    Retrieve campaigns with their current performance metrics.
     """
+    from sqlalchemy import func, case
+    
     campaigns = db.query(models.Campaign).filter(models.Campaign.user_id == current_user.id).offset(skip).limit(limit).all()
-    return campaigns
+    
+    result = []
+    for campaign in campaigns:
+        # Calculate stats for this campaign
+        email_query = db.query(models.Email).filter(models.Email.campaign_id == campaign.id)
+        total_sent = email_query.count()
+        
+        # Use portable case() syntax for SQLAlchemy 2.0
+        total_opened = db.query(func.sum(case((models.Email.opened == True, 1), else_=0))).filter(models.Email.campaign_id == campaign.id).scalar() or 0
+        total_replied = db.query(func.sum(case((models.Email.replied == True, 1), else_=0))).filter(models.Email.campaign_id == campaign.id).scalar() or 0
+        
+        open_rate = (total_opened / total_sent * 100) if total_sent > 0 else 0
+        reply_rate = (total_replied / total_sent * 100) if total_sent > 0 else 0
+        
+        # Progress calculation (simplified: leads with at least one email sent / total leads)
+        total_leads = db.query(models.Lead).filter(models.Lead.user_id == current_user.id).count() # This is a bit rough, ideally we track per-campaign leads
+        progress = (total_sent / total_leads * 100) if total_leads > 0 else 0
+        
+        result.append({
+            "id": campaign.id,
+            "name": campaign.name,
+            "description": campaign.description,
+            "status": campaign.status,
+            "created_at": campaign.created_at,
+            "metrics": {
+                "sent": total_sent,
+                "open_rate": f"{open_rate:.1f}%",
+                "reply_rate": f"{reply_rate:.1f}%",
+                "progress": min(int(progress), 100)
+            }
+        })
+    
+    return result
 
 @router.post("/", response_model=schemas.Campaign)
 def create_campaign(

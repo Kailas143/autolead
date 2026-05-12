@@ -1,7 +1,7 @@
 from typing import Any, List, Dict
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
-from sqlalchemy import func, cast, Date
+from sqlalchemy import func, cast, Date, Integer, case
 from app.api import deps
 from app.models.lead import Lead
 from app.models.email import Email
@@ -42,8 +42,10 @@ def get_analytics_stats(
     last_7_days = []
     for i in range(6, -1, -1):
         day = (datetime.utcnow() - timedelta(days=i)).date()
-        sent_count = email_query.filter(cast(Email.sent_at, Date) == day).count()
-        open_count = email_query.filter(cast(Email.sent_at, Date) == day, Email.opened == True).count()
+        # Use func.date for more reliable date comparison in Postgres/SQLite
+        day_query = email_query.filter(func.date(Email.sent_at) == day)
+        sent_count = day_query.count()
+        open_count = day_query.filter(Email.opened == True).count()
         last_7_days.append({
             "date": day.strftime("%b %d"),
             "sent": sent_count,
@@ -54,11 +56,11 @@ def get_analytics_stats(
     top_sequences = db.query(
         Sequence.subject,
         func.count(Email.id).label("sent_count"),
-        func.sum(cast(Email.opened, func.Integer)).label("open_count"),
-        func.sum(cast(Email.replied, func.Integer)).label("reply_count")
+        func.sum(case((Email.opened == True, 1), else_=0)).label("open_count"),
+        func.sum(case((Email.replied == True, 1), else_=0)).label("reply_count")
     ).join(Email, Email.sequence_id == Sequence.id).join(Lead).filter(
         Lead.user_id == current_user.id
-    ).group_by(Sequence.id).order_by(func.count(Email.id).desc()).limit(5).all()
+    ).group_by(Sequence.id, Sequence.subject).order_by(func.count(Email.id).desc()).limit(5).all()
 
     formatted_sequences = [
         {

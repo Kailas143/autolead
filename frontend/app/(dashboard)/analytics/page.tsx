@@ -8,19 +8,53 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import api from "@/lib/api";
-import {
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
-  Legend
-} from "recharts";
+import dynamic from "next/dynamic";
+
+// Dynamically import Recharts components to avoid SSR dimension issues
+const ResponsiveContainer = dynamic(
+  () => import("recharts").then((mod) => mod.ResponsiveContainer),
+  { ssr: false }
+);
+const AreaChart = dynamic(
+  () => import("recharts").then((mod) => mod.AreaChart),
+  { ssr: false }
+);
+const Area = dynamic(
+  () => import("recharts").then((mod) => mod.Area),
+  { ssr: false }
+);
+const XAxis = dynamic(
+  () => import("recharts").then((mod) => mod.XAxis),
+  { ssr: false }
+);
+const YAxis = dynamic(
+  () => import("recharts").then((mod) => mod.YAxis),
+  { ssr: false }
+);
+const CartesianGrid = dynamic(
+  () => import("recharts").then((mod) => mod.CartesianGrid),
+  { ssr: false }
+);
+const Tooltip = dynamic(
+  () => import("recharts").then((mod) => mod.Tooltip),
+  { ssr: false }
+);
+const PieChart = dynamic(
+  () => import("recharts").then((mod) => mod.PieChart),
+  { ssr: false }
+);
+const Pie = dynamic(
+  () => import("recharts").then((mod) => mod.Pie),
+  { ssr: false }
+);
+const Cell = dynamic(
+  () => import("recharts").then((mod) => mod.Cell),
+  { ssr: false }
+);
+const Legend = dynamic(
+  () => import("recharts").then((mod) => mod.Legend),
+  { ssr: false }
+);
 
 const COLORS = ["#10b981", "#ef4444", "#3b82f6", "#8b5cf6", "#f59e0b"];
 
@@ -47,8 +81,10 @@ interface AnalyticsData {
 export default function AnalyticsPage() {
   const [data, setData] = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    setMounted(true);
     const fetchAnalytics = async () => {
       try {
         const response = await api.get("/analytics/stats");
@@ -62,7 +98,7 @@ export default function AnalyticsPage() {
     fetchAnalytics();
   }, []);
 
-  if (loading) {
+  if (!mounted || loading) {
     return (
       <div className="flex items-center justify-center h-[70vh]">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -111,7 +147,7 @@ export default function AnalyticsPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        <Card className="border-border/50 bg-card/30 backdrop-blur-sm shadow-xl">
+        <Card className="border-border/50 bg-card/30 backdrop-blur-sm shadow-xl overflow-hidden">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <BarChart3 className="w-5 h-5 text-primary" />
@@ -119,9 +155,9 @@ export default function AnalyticsPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="h-[300px] w-full">
+            <div className="h-[300px] w-full min-w-0">
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={data?.engagement}>
+                <AreaChart data={data?.engagement} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                   <defs>
                     <linearGradient id="colorSent" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
@@ -147,7 +183,7 @@ export default function AnalyticsPage() {
           </CardContent>
         </Card>
 
-        <Card className="border-border/50 bg-card/30 backdrop-blur-sm shadow-xl">
+        <Card className="border-border/50 bg-card/30 backdrop-blur-sm shadow-xl overflow-hidden">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <PieChartIcon className="w-5 h-5 text-primary" />
@@ -155,7 +191,7 @@ export default function AnalyticsPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="h-[300px] w-full">
+            <div className="h-[300px] w-full min-w-0">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
