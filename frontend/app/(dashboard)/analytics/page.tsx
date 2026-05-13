@@ -81,29 +81,32 @@ interface AnalyticsData {
 export default function AnalyticsPage() {
   const [data, setData] = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  useEffect(() => {
-    if (!mounted) return;
+    let isCancelled = false;
 
     const fetchAnalytics = async () => {
       try {
         const response = await api.get("/analytics/stats");
-        setData(response.data);
+        if (!isCancelled) {
+          setData(response.data);
+        }
       } catch (error) {
         console.error("Failed to fetch analytics:", error);
       } finally {
-        setLoading(false);
+        if (!isCancelled) {
+          setLoading(false);
+        }
       }
     };
-    fetchAnalytics();
-  }, [mounted]);
+    void fetchAnalytics();
 
-  if (!mounted || loading) {
+    return () => {
+      isCancelled = true;
+    };
+  }, []);
+
+  if (loading) {
     return (
       <div className="flex items-center justify-center h-[70vh]">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />

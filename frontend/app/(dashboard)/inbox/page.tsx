@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import api from "@/lib/api";
 import { formatDistanceToNow } from "date-fns";
 import { Card, CardContent } from "@/components/ui/card";
@@ -64,7 +64,6 @@ const getClassificationConfig = (classification: string) => {
 export default function InboxPage() {
   const [replies, setReplies] = useState<Reply[]>([]);
   const [loading, setLoading] = useState(true);
-  const [mounted, setMounted] = useState(false);
   
   // Thread state
   const [selectedThread, setSelectedThread] = useState<ThreadItem[]>([]);
@@ -73,25 +72,29 @@ export default function InboxPage() {
   const [loadingThread, setLoadingThread] = useState(false);
   
   useEffect(() => {
-    setMounted(true);
-  }, []);
+    let isCancelled = false;
 
-  const fetchReplies = useCallback(async () => {
-    try {
-      const response = await api.get("/replies/");
-      setReplies(response.data);
-    } catch (error) {
-      console.error("Failed to fetch replies:", error);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+    const fetchReplies = async () => {
+      try {
+        const response = await api.get("/replies/");
+        if (!isCancelled) {
+          setReplies(response.data);
+        }
+      } catch (error) {
+        console.error("Failed to fetch replies:", error);
+      } finally {
+        if (!isCancelled) {
+          setLoading(false);
+        }
+      }
+    };
 
-  useEffect(() => {
-    if (mounted) {
-      fetchReplies();
-    }
-  }, [mounted, fetchReplies]);
+    void fetchReplies();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, []);
 
   const handleReply = (reply: Reply) => {
     if (!reply.lead?.email) {
