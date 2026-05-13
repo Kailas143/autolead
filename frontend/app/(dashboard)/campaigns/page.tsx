@@ -42,7 +42,7 @@ export default function CampaignsPage() {
   };
 
   useEffect(() => {
-    fetchCampaigns();
+    Promise.resolve().then(() => fetchCampaigns());
   }, []);
 
   const handlePause = async (id: number, currentStatus: string) => {

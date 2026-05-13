@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Eye, Edit, Trash2, MoreHorizontal, Loader2, Mail } from "lucide-react";
+import { Eye, Edit, Trash2, Loader2, Mail } from "lucide-react";
 import { 
   Dialog, 
   DialogContent, 
@@ -56,7 +56,7 @@ export default function LeadsPage() {
   }, []);
 
   useEffect(() => {
-    void fetchLeads();
+    Promise.resolve().then(() => fetchLeads());
   }, [fetchLeads]);
 
   useEffect(() => {
