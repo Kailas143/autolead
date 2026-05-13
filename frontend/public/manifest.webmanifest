@@ -1,0 +1,24 @@
+{
+  "name": "Aurvyz Outreach",
+  "short_name": "Aurvyz",
+  "description": "Mobile-friendly outreach tracking and campaign management.",
+  "start_url": "/dashboard",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#050505",
+  "theme_color": "#050505",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/logo.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/favicon.ico",
+      "sizes": "48x48",
+      "type": "image/x-icon"
+    }
+  ]
+}

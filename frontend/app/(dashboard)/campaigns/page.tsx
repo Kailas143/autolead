@@ -6,8 +6,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import api from "@/lib/api";
-import { format } from "date-fns";
-import { Loader2, Play, Pause, BarChart3, Plus, Trash2 } from "lucide-react";
+import { format, formatDistanceToNow } from "date-fns";
+import { Loader2, Play, Pause, BarChart3, Plus, Trash2, Clock3 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface Campaign {
@@ -83,11 +83,6 @@ export default function CampaignsPage() {
           <p className="text-sm text-muted-foreground">
             Started {format(new Date(campaign.created_at), "MMM d, yyyy")}
           </p>
-          {campaign.scheduled_for && (
-            <p className="text-sm text-muted-foreground">
-              Scheduled for {format(new Date(campaign.scheduled_for), "MMM d, yyyy h:mm a")}
-            </p>
-          )}
         </div>
         <div className="flex items-center gap-2">
           <Badge className={cn(
@@ -110,6 +105,27 @@ export default function CampaignsPage() {
         </div>
       </CardHeader>
       <CardContent className="space-y-6">
+        {campaign.status === "scheduled" && campaign.scheduled_for && (
+          <div className="rounded-2xl border border-sky-500/20 bg-sky-500/8 p-4">
+            <div className="flex items-start gap-3">
+              <div className="mt-0.5 rounded-xl bg-sky-500/12 p-2 text-sky-400">
+                <Clock3 className="h-4 w-4" />
+              </div>
+              <div className="min-w-0">
+                <div className="text-xs font-semibold uppercase tracking-[0.22em] text-sky-400">
+                  Next scheduled send
+                </div>
+                <div className="mt-1 text-sm font-semibold text-white">
+                  {format(new Date(campaign.scheduled_for), "MMM d, yyyy h:mm a")}
+                </div>
+                <div className="mt-1 text-xs text-sky-100/75">
+                  {formatDistanceToNow(new Date(campaign.scheduled_for), { addSuffix: true })}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="grid grid-cols-3 gap-4">
           <div className="text-center">
             <p className="text-xs text-muted-foreground uppercase mb-1">Sent</p>

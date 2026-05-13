@@ -73,6 +73,11 @@ Run the **Celery Worker** (in a separate terminal):
 celery -A app.celery_app.celery_app worker --loglevel=info
 ```
 
+Run **Celery Beat** as well if you want periodic follow-up checks locally:
+```bash
+celery -A app.celery_app.celery_app beat --loglevel=info
+```
+
 #### **2. Frontend**
 Navigate to the `frontend` directory and install dependencies:
 ```bash

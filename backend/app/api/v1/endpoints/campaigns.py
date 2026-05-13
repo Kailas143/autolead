@@ -154,6 +154,7 @@ def launch_campaign(
     now = datetime.now(timezone.utc)
 
     if scheduled_for and scheduled_for > now:
+        campaign.scheduled_for = scheduled_for
         campaign.status = "scheduled"
         db.commit()
         launch_campaign_task.apply_async(args=[campaign_id], eta=scheduled_for)
