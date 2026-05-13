@@ -16,6 +16,7 @@ interface Campaign {
   description: string;
   status: string;
   created_at: string;
+  scheduled_for?: string | null;
   metrics: {
     sent: number;
     open_rate: string;
@@ -82,11 +83,20 @@ export default function CampaignsPage() {
           <p className="text-sm text-muted-foreground">
             Started {format(new Date(campaign.created_at), "MMM d, yyyy")}
           </p>
+          {campaign.scheduled_for && (
+            <p className="text-sm text-muted-foreground">
+              Scheduled for {format(new Date(campaign.scheduled_for), "MMM d, yyyy h:mm a")}
+            </p>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <Badge className={cn(
             "capitalize",
-            campaign.status === "active" ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20" : "bg-orange-500/10 text-orange-500 border-orange-500/20"
+            campaign.status === "active"
+              ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20"
+              : campaign.status === "scheduled"
+                ? "bg-sky-500/10 text-sky-500 border-sky-500/20"
+                : "bg-orange-500/10 text-orange-500 border-orange-500/20"
           )}>
             {campaign.status}
           </Badge>
@@ -136,10 +146,10 @@ export default function CampaignsPage() {
           >
             {isActionLoading === campaign.id ? (
               <Loader2 className="w-3.5 h-3.5 animate-spin" />
-            ) : campaign.status === "active" ? (
+            ) : campaign.status === "active" || campaign.status === "scheduled" ? (
               <><Pause className="w-3.5 h-3.5" /> Pause</>
             ) : (
-              <><Play className="w-3.5 h-3.5" /> Resume</>
+              <><Play className="w-3.5 h-3.5" /> Launch</>
             )}
           </button>
           <button 
@@ -170,6 +180,9 @@ export default function CampaignsPage() {
           <TabsTrigger value="active" className="rounded-lg px-6 flex items-center gap-2">
             <Play className="w-4 h-4" /> Active Campaigns
           </TabsTrigger>
+          <TabsTrigger value="scheduled" className="rounded-lg px-6 flex items-center gap-2">
+            <Loader2 className="w-4 h-4" /> Scheduled
+          </TabsTrigger>
           <TabsTrigger value="drafts" className="rounded-lg px-6 flex items-center gap-2">
             <Loader2 className="w-4 h-4" /> Drafts
           </TabsTrigger>
@@ -189,6 +202,22 @@ export default function CampaignsPage() {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {campaigns.filter(c => c.status === "active").map((campaign) => (
+                <CampaignCard key={campaign.id} campaign={campaign} />
+              ))}
+            </div>
+          )}
+        </TabsContent>
+
+        <TabsContent value="scheduled" className="animate-in fade-in duration-300">
+          {loading ? (
+            <div className="flex justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
+          ) : campaigns.filter(c => c.status === "scheduled").length === 0 ? (
+            <div className="text-center py-20 bg-white/5 rounded-2xl border border-dashed border-border/50">
+              <p className="text-muted-foreground">No scheduled campaigns yet.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {campaigns.filter(c => c.status === "scheduled").map((campaign) => (
                 <CampaignCard key={campaign.id} campaign={campaign} />
               ))}
             </div>

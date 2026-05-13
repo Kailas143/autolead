@@ -97,6 +97,7 @@ class Settings(BaseSettings):
     RESEND_API_KEY: str = ""
     EMAIL_FROM: str = "hello@aurvyz.com"
     EMAIL_FROM_NAME: str = "Aurvyz"
+    APP_TIMEZONE: str = "Asia/Kolkata"
 
     # AI
     GEMINI_API_KEY: str = ""

@@ -54,6 +54,11 @@ Sreekailas v.s
   ]);
   const [industry, setIndustry] = useState<string>("All Industries");
   const [title, setTitle] = useState<string>("");
+  const [scheduledFor, setScheduledFor] = useState<string>("");
+  const [dailySendLimit, setDailySendLimit] = useState<number>(50);
+  const [restrictSendingHours, setRestrictSendingHours] = useState(false);
+  const [sendWindowStartHour, setSendWindowStartHour] = useState<number>(9);
+  const [sendWindowEndHour, setSendWindowEndHour] = useState<number>(17);
   const [isLaunching, setIsLaunching] = useState(false);
 
   const addStep = () => {
@@ -85,6 +90,10 @@ Sreekailas v.s
       const payload = {
         name: title,
         target_industry: industry === "All Industries" ? null : industry,
+        scheduled_for: scheduledFor ? new Date(scheduledFor).toISOString() : null,
+        daily_send_limit: Math.max(1, dailySendLimit || 1),
+        send_window_start_hour: restrictSendingHours ? Math.max(0, Math.min(23, sendWindowStartHour || 0)) : 0,
+        send_window_end_hour: restrictSendingHours ? Math.max(0, Math.min(23, sendWindowEndHour || 0)) : 0,
         sequences: steps.map((s, index) => ({
           step_number: index + 1,
           subject: s.subject,
@@ -99,7 +108,7 @@ Sreekailas v.s
       // Now launch it
       await api.post(`/campaigns/${response.data.id}/launch`);
 
-      alert("Campaign launched successfully!");
+      alert(scheduledFor ? "Campaign scheduled successfully!" : "Campaign launched successfully!");
       router.push("/dashboard");
     } catch (error) {
       console.error("Failed to launch campaign:", error);
@@ -181,7 +190,60 @@ Sreekailas v.s
           </div>
           <div className="space-y-2">
             <label className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Daily Send Limit</label>
-            <Input defaultValue="50" className="bg-black/20 border-white/10 h-12" />
+            <Input
+              type="number"
+              min="1"
+              value={dailySendLimit}
+              onChange={(e) => setDailySendLimit(parseInt(e.target.value, 10) || 1)}
+              className="bg-black/20 border-white/10 h-12"
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Start Time</label>
+            <Input
+              type="datetime-local"
+              value={scheduledFor}
+              onChange={(e) => setScheduledFor(e.target.value)}
+              className="bg-black/20 border-white/10 h-12"
+            />
+            <p className="text-xs text-muted-foreground">Leave blank to launch immediately. Uses your local browser time.</p>
+          </div>
+          <div className="space-y-2">
+            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Sending Hours</label>
+            <label className="flex items-center gap-3 rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white/80">
+              <input
+                type="checkbox"
+                checked={restrictSendingHours}
+                onChange={(e) => setRestrictSendingHours(e.target.checked)}
+                className="h-4 w-4 rounded border-white/20 bg-transparent"
+              />
+              <span>Restrict sending hours</span>
+            </label>
+            {restrictSendingHours && (
+              <>
+                <div className="grid grid-cols-2 gap-3">
+                  <Input
+                    type="number"
+                    min="0"
+                    max="23"
+                    value={sendWindowStartHour}
+                    onChange={(e) => setSendWindowStartHour(parseInt(e.target.value, 10) || 0)}
+                    className="bg-black/20 border-white/10 h-12"
+                    placeholder="Start hour"
+                  />
+                  <Input
+                    type="number"
+                    min="0"
+                    max="23"
+                    value={sendWindowEndHour}
+                    onChange={(e) => setSendWindowEndHour(parseInt(e.target.value, 10) || 0)}
+                    className="bg-black/20 border-white/10 h-12"
+                    placeholder="End hour"
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground">24-hour clock in campaign timezone. Example: 9 to 17 sends between 9 AM and 5 PM.</p>
+              </>
+            )}
           </div>
         </div>
       </Card>
@@ -293,7 +355,7 @@ Sreekailas v.s
           disabled={isLaunching}
           className="px-8 shadow-lg shadow-primary/20 rounded-xl h-11"
         >
-          {isLaunching ? "Launching..." : "Launch Campaign"}
+          {isLaunching ? (scheduledFor ? "Scheduling..." : "Launching...") : (scheduledFor ? "Schedule Campaign" : "Launch Campaign")}
         </Button>
       </div>
     </div>

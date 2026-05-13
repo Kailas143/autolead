@@ -13,6 +13,10 @@ class Campaign(Base):
     description = Column(Text)
     target_industry = Column(String) # Optional filter by industry
     status = Column(String, default="draft")  # draft, active, paused, completed
+    scheduled_for = Column(DateTime(timezone=True), nullable=True)
+    daily_send_limit = Column(Integer, nullable=False, default=50)
+    send_window_start_hour = Column(Integer, nullable=False, default=9)
+    send_window_end_hour = Column(Integer, nullable=False, default=17)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())

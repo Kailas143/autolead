@@ -1,7 +1,7 @@
 # pyrefly: ignore [missing-import]
 import resend
 from typing import List, Optional, Dict, Any
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.models.email import Email
@@ -117,7 +117,7 @@ class EmailService:
                 subject=subject,
                 body=plain_body,
                 resend_id=r["id"],
-                sent_at=datetime.utcnow()
+                sent_at=datetime.now(timezone.utc)
             )
             db.add(email_record)
             db.commit()

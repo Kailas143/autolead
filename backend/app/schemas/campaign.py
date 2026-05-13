@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import List, Optional
 
 from pydantic import BaseModel
@@ -26,6 +27,10 @@ class CampaignBase(BaseModel):
     name: str
     description: Optional[str] = None
     target_industry: Optional[str] = None
+    scheduled_for: Optional[datetime] = None
+    daily_send_limit: int = 50
+    send_window_start_hour: int = 9
+    send_window_end_hour: int = 17
 
 
 class CampaignCreate(CampaignBase):

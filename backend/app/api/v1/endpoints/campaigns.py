@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from typing import Any, List, Dict
 # pyrefly: ignore [missing-import]
 from fastapi import APIRouter, Depends, HTTPException
@@ -10,6 +11,14 @@ from app.core.config import settings
 from fastapi import Header
 
 router = APIRouter()
+
+
+def _to_utc(dt: datetime | None) -> datetime | None:
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
 
 @router.post("/trigger-follow-ups")
 def trigger_follow_ups(
@@ -62,6 +71,10 @@ def read_campaigns(
             "name": campaign.name,
             "description": campaign.description,
             "status": campaign.status,
+            "scheduled_for": campaign.scheduled_for,
+            "daily_send_limit": campaign.daily_send_limit,
+            "send_window_start_hour": campaign.send_window_start_hour,
+            "send_window_end_hour": campaign.send_window_end_hour,
             "created_at": campaign.created_at,
             "metrics": {
                 "sent": total_sent,
@@ -136,10 +149,26 @@ def launch_campaign(
     campaign = db.query(models.Campaign).filter(models.Campaign.id == campaign_id, models.Campaign.user_id == current_user.id).first()
     if not campaign:
         raise HTTPException(status_code=404, detail="Campaign not found")
-    
-    # Trigger background task
+
+    scheduled_for = _to_utc(campaign.scheduled_for)
+    now = datetime.now(timezone.utc)
+
+    if scheduled_for and scheduled_for > now:
+        campaign.status = "scheduled"
+        db.commit()
+        launch_campaign_task.apply_async(args=[campaign_id], eta=scheduled_for)
+        return {
+            "status": "success",
+            "message": "Campaign scheduled successfully",
+            "scheduled_for": scheduled_for,
+        }
+
+    campaign.scheduled_for = None
+    db.commit()
+
+    # Trigger background task immediately
     launch_campaign_task.delay(campaign_id)
-    
+
     return {"status": "success", "message": "Campaign launch triggered"}
 
 @router.post("/{campaign_id}/pause")

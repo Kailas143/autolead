@@ -7,7 +7,94 @@ from app.services.csv_service import csv_service
 from app.models.lead import Lead
 from app.models.campaign import Campaign, Sequence
 from app.models.email import Email
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+from sqlalchemy import func
+from zoneinfo import ZoneInfo
+
+APP_TZ = ZoneInfo(settings.APP_TIMEZONE)
+
+
+def _as_utc(dt: datetime | None) -> datetime | None:
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
+
+
+def _daily_limit_for(campaign: Campaign) -> int:
+    return max(campaign.daily_send_limit or 50, 1)
+
+
+def _window_hours_for(campaign: Campaign) -> tuple[int, int]:
+    start = max(0, min(23, campaign.send_window_start_hour if campaign.send_window_start_hour is not None else 9))
+    end = max(0, min(23, campaign.send_window_end_hour if campaign.send_window_end_hour is not None else 17))
+    return start, end
+
+
+def _within_send_window(campaign: Campaign, now_utc: datetime) -> bool:
+    start_hour, end_hour = _window_hours_for(campaign)
+    if start_hour == end_hour:
+        return True
+
+    local_hour = now_utc.astimezone(APP_TZ).hour
+    if start_hour < end_hour:
+        return start_hour <= local_hour < end_hour
+    return local_hour >= start_hour or local_hour < end_hour
+
+
+def _local_day_bounds_utc(now_utc: datetime) -> tuple[datetime, datetime]:
+    local_now = now_utc.astimezone(APP_TZ)
+    local_start = local_now.replace(hour=0, minute=0, second=0, microsecond=0)
+    local_end = local_start + timedelta(days=1)
+    return local_start.astimezone(timezone.utc), local_end.astimezone(timezone.utc)
+
+
+def _remaining_daily_capacity(db, campaign: Campaign, now_utc: datetime) -> int:
+    day_start_utc, day_end_utc = _local_day_bounds_utc(now_utc)
+    sent_today = db.query(Email).filter(
+        Email.campaign_id == campaign.id,
+        Email.sent_at.isnot(None),
+        Email.sent_at >= day_start_utc,
+        Email.sent_at < day_end_utc,
+    ).count()
+    return max(_daily_limit_for(campaign) - sent_today, 0)
+
+
+def _lead_query_for_campaign(db, campaign: Campaign):
+    query = db.query(Lead).filter(Lead.user_id == campaign.user_id)
+    if campaign.target_industry and campaign.target_industry != "All Industries":
+        query = query.filter(Lead.industry.ilike(f"%{campaign.target_industry}%"))
+    return query
+
+
+def _queue_initial_campaign_emails(db, campaign: Campaign, now_utc: datetime) -> int:
+    if not _within_send_window(campaign, now_utc):
+        return 0
+
+    remaining_capacity = _remaining_daily_capacity(db, campaign, now_utc)
+    if remaining_capacity <= 0:
+        return 0
+
+    first_step = db.query(Sequence).filter(
+        Sequence.campaign_id == campaign.id,
+        Sequence.step_number == 1
+    ).first()
+    if not first_step:
+        print(f"ERROR: No sequence steps found for campaign {campaign.id}")
+        return 0
+
+    sent_lead_ids = db.query(Email.lead_id).filter(Email.campaign_id == campaign.id)
+    pending_leads = _lead_query_for_campaign(db, campaign).filter(
+        ~Lead.id.in_(sent_lead_ids)
+    ).order_by(Lead.id).limit(remaining_capacity).all()
+
+    for lead in pending_leads:
+        send_campaign_email_task.delay(campaign.id, lead.id, first_step.id)
+
+    if pending_leads:
+        print(f"DEBUG: Queued {len(pending_leads)} initial emails for campaign {campaign.id}")
+    return len(pending_leads)
 
 @celery_app.task
 def process_csv_import(user_id: int, file_content: str):
@@ -82,37 +169,30 @@ def send_campaign_email_task(campaign_id: int, lead_id: int, sequence_id: int):
 def launch_campaign_task(campaign_id: int):
     db = SessionLocal()
     try:
+        now_utc = datetime.now(timezone.utc)
         campaign = db.query(Campaign).filter(Campaign.id == campaign_id).first()
         if not campaign:
             print(f"ERROR: Campaign {campaign_id} not found")
             return
-            
+
+        if campaign.status == "paused":
+            print(f"DEBUG: Skipping launch for paused campaign {campaign_id}")
+            return
+
+        if campaign.scheduled_for:
+            scheduled_for = _as_utc(campaign.scheduled_for)
+
+            if scheduled_for and scheduled_for > now_utc:
+                print(f"DEBUG: Campaign {campaign_id} scheduled for later at {scheduled_for.isoformat()}")
+                return
+
         # Update campaign status
         campaign.status = "active"
+        campaign.scheduled_for = None
         db.commit()
-            
-        # Find first sequence step
-        first_step = db.query(Sequence).filter(
-            Sequence.campaign_id == campaign_id,
-            Sequence.step_number == 1
-        ).first()
-        
-        if not first_step:
-            print(f"ERROR: No sequence steps found for campaign {campaign_id}")
-            return
-            
-        # Find matching leads
-        query = db.query(Lead).filter(Lead.user_id == campaign.user_id)
-        if campaign.target_industry and campaign.target_industry != "All Industries":
-            # Using ilike for case-insensitive matching
-            query = query.filter(Lead.industry.ilike(f"%{campaign.target_industry}%"))
-            
-        leads = query.all()
-        print(f"DEBUG: Launching campaign '{campaign.name}' for {len(leads)} leads")
-        
-        for lead in leads:
-            # Send the first email
-            send_campaign_email_task.delay(campaign.id, lead.id, first_step.id)
+        matched_leads = _lead_query_for_campaign(db, campaign).count()
+        queued = _queue_initial_campaign_emails(db, campaign, now_utc)
+        print(f"DEBUG: Activated campaign '{campaign.name}' for {matched_leads} leads, queued {queued} initial emails")
             
     except Exception as e:
         from app.services.audit_service import audit_service
@@ -132,6 +212,16 @@ def check_follow_ups():
         active_campaigns = db.query(Campaign).filter(Campaign.status == "active").all()
         
         for campaign in active_campaigns:
+            now_utc = datetime.now(timezone.utc)
+
+            if not _within_send_window(campaign, now_utc):
+                continue
+
+            _queue_initial_campaign_emails(db, campaign, now_utc)
+            remaining_capacity = _remaining_daily_capacity(db, campaign, now_utc)
+            if remaining_capacity <= 0:
+                continue
+
             # 2. Get all sequences for this campaign ordered by step
             sequences = db.query(Sequence).filter(
                 Sequence.campaign_id == campaign.id
@@ -146,7 +236,6 @@ def check_follow_ups():
 
             # 3. Find all leads that have received at least one email in this campaign
             # We group by lead_id and get the latest email
-            from sqlalchemy import func
             latest_emails_sub = db.query(
                 Email.lead_id,
                 func.max(Email.sent_at).label("latest_sent")
@@ -156,9 +245,12 @@ def check_follow_ups():
                 latest_emails_sub,
                 (Email.lead_id == latest_emails_sub.c.lead_id) & 
                 (Email.sent_at == latest_emails_sub.c.latest_sent)
-            ).all()
+            ).order_by(Email.sent_at.asc()).all()
 
             for last_email in latest_emails:
+                if remaining_capacity <= 0:
+                    break
+
                 # 4. SKIP if lead has replied
                 # Check if ANY email to this lead in this campaign has 'replied' = True
                 has_replied = db.query(Email).filter(
@@ -184,10 +276,15 @@ def check_follow_ups():
                 next_seq = seq_map[next_step_num]
                 
                 # 6. Check if it's time to send (Production: days)
-                wait_until = last_email.sent_at + timedelta(days=next_seq.delay_days)
-                if datetime.utcnow() >= wait_until.replace(tzinfo=None):
+                sent_at_utc = _as_utc(last_email.sent_at)
+                if not sent_at_utc:
+                    continue
+
+                wait_until = sent_at_utc + timedelta(days=next_seq.delay_days)
+                if now_utc >= wait_until:
                     print(f"DEBUG: Time for follow-up! Sending Step {next_step_num} to lead {last_email.lead_id}")
                     send_campaign_email_task.delay(campaign.id, last_email.lead_id, next_seq.id)
+                    remaining_capacity -= 1
 
     except Exception as e:
         from app.services.audit_service import audit_service
