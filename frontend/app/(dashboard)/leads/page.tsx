@@ -20,8 +20,7 @@ import {
   DialogContent, 
   DialogHeader, 
   DialogTitle, 
-  DialogFooter,
-  DialogTrigger 
+  DialogFooter 
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -57,7 +56,7 @@ export default function LeadsPage() {
   }, []);
 
   useEffect(() => {
-    fetchLeads();
+    void fetchLeads();
   }, [fetchLeads]);
 
   useEffect(() => {
@@ -73,9 +72,9 @@ export default function LeadsPage() {
           console.error("Failed to fetch lead stats:", error);
         }
       };
-      fetchStats();
+      void fetchStats();
     } else {
-      setLeadStats(null);
+      Promise.resolve().then(() => setLeadStats(null));
     }
   }, [isViewDialogOpen, selectedLead]);
 

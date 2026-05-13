@@ -109,7 +109,7 @@ Sreekailas v.s
     }
   };
 
-  const handleGenerateAI = async (id: string, index: number) => {
+  const handleGenerateAI = async (id: string) => {
     try {
       updateStep(id, "body", "Generating professional follow-up...");
       
@@ -254,7 +254,7 @@ Sreekailas v.s
                     variant="ghost" 
                     size="sm" 
                     className="h-8 text-primary hover:text-primary hover:bg-primary/10 gap-2"
-                    onClick={() => handleGenerateAI(step.id, index)}
+                    onClick={() => handleGenerateAI(step.id)}
                   >
                     <Sparkles className="w-3 h-3" />
                     AI Generate
