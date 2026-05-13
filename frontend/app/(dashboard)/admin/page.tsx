@@ -61,6 +61,11 @@ export default function AdminDashboard() {
   const [logs, setLogs] = useState<SystemLog[]>([]);
   const [aiUsage, setAiUsage] = useState<AIUsageStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const totalTokens = aiUsage?.totals.total ?? 0;
+  const completionTokens = aiUsage?.totals.completion ?? 0;
+  const completionRatio = totalTokens > 0
+    ? ((completionTokens / totalTokens) * 100).toFixed(1)
+    : "0";
 
   const refreshData = async () => {
     try {
@@ -148,7 +153,7 @@ export default function AdminDashboard() {
             <CardTitle className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Total AI Tokens</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-white">{(aiUsage?.totals?.total || 0).toLocaleString()}</div>
+            <div className="text-2xl font-bold text-white">{totalTokens.toLocaleString()}</div>
             <p className="text-[10px] text-emerald-500 mt-1 font-medium italic">Gemini Flash Active</p>
           </CardContent>
         </Card>
@@ -166,11 +171,7 @@ export default function AdminDashboard() {
             <CardTitle className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Completion Ratio</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-white">
-              {aiUsage?.totals?.total > 0 
-                ? ((aiUsage.totals.completion / aiUsage.totals.total) * 100).toFixed(1) 
-                : 0}%
-            </div>
+            <div className="text-2xl font-bold text-white">{completionRatio}%</div>
             <p className="text-[10px] text-muted-foreground mt-1 font-medium">Output Efficiency</p>
           </CardContent>
         </Card>
