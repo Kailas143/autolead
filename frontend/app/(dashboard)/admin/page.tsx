@@ -18,8 +18,6 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
-  Activity, 
-  AlertCircle, 
   Cpu, 
   History, 
   ShieldCheck, 
@@ -32,17 +30,44 @@ import api from "@/lib/api";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 
+type SystemLog = {
+  id: number;
+  created_at: string;
+  category: string;
+  message: string;
+  level: string;
+};
+
+type AIUsageEntry = {
+  id: number;
+  model_name: string;
+  task_type: string;
+  prompt_tokens: number;
+  completion_tokens: number;
+  created_at: string;
+};
+
+type AIUsageStats = {
+  totals: {
+    total: number;
+    prompt: number;
+    completion: number;
+  };
+  by_task: Record<string, number>;
+  recent: AIUsageEntry[];
+};
+
 export default function AdminDashboard() {
-  const [logs, setLogs] = useState<any[]>([]);
-  const [aiUsage, setAiUsage] = useState<any>(null);
+  const [logs, setLogs] = useState<SystemLog[]>([]);
+  const [aiUsage, setAiUsage] = useState<AIUsageStats | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const fetchData = async () => {
+  const refreshData = async () => {
     try {
       setLoading(true);
       const [logsRes, usageRes] = await Promise.all([
-        api.get("/admin/logs"),
-        api.get("/admin/ai-usage")
+        api.get<SystemLog[]>("/admin/logs"),
+        api.get<AIUsageStats>("/admin/ai-usage")
       ]);
       setLogs(logsRes.data);
       setAiUsage(usageRes.data);
@@ -64,7 +89,37 @@ export default function AdminDashboard() {
   };
 
   useEffect(() => {
-    fetchData();
+    let isCancelled = false;
+
+    const loadData = async () => {
+      try {
+        const [logsRes, usageRes] = await Promise.all([
+          api.get<SystemLog[]>("/admin/logs"),
+          api.get<AIUsageStats>("/admin/ai-usage")
+        ]);
+
+        if (isCancelled) {
+          return;
+        }
+
+        setLogs(logsRes.data);
+        setAiUsage(usageRes.data);
+      } catch (error) {
+        if (!isCancelled) {
+          console.error("Failed to fetch admin data:", error);
+        }
+      } finally {
+        if (!isCancelled) {
+          setLoading(false);
+        }
+      }
+    };
+
+    void loadData();
+
+    return () => {
+      isCancelled = true;
+    };
   }, []);
 
   return (
@@ -78,7 +133,7 @@ export default function AdminDashboard() {
           <p className="text-muted-foreground mt-1 text-sm uppercase tracking-widest font-medium">System Health & Token Analytics</p>
         </div>
         <div className="flex gap-3">
-          <Button variant="outline" size="sm" className="bg-white/5 border-white/10 gap-2 h-9" onClick={fetchData}>
+          <Button variant="outline" size="sm" className="bg-white/5 border-white/10 gap-2 h-9" onClick={refreshData}>
             <RefreshCcw className="w-4 h-4" /> Refresh
           </Button>
           <Button variant="destructive" size="sm" className="gap-2 h-9" onClick={clearLogs}>
@@ -185,7 +240,7 @@ export default function AdminDashboard() {
                 <CardTitle className="text-sm font-bold uppercase tracking-widest text-muted-foreground">Task Distribution</CardTitle>
               </CardHeader>
               <CardContent className="space-y-6">
-                {aiUsage && Object.entries(aiUsage.by_task).map(([task, tokens]: [any, any]) => (
+                {aiUsage && Object.entries(aiUsage.by_task).map(([task, tokens]) => (
                   <div key={task} className="space-y-2">
                     <div className="flex justify-between text-xs">
                       <span className="capitalize text-white/70">{task.replace("_", " ")}</span>
@@ -214,7 +269,7 @@ export default function AdminDashboard() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {aiUsage?.recent.map((entry: any) => (
+                  {aiUsage?.recent.map((entry) => (
                     <TableRow key={entry.id} className="border-white/5 hover:bg-white/[0.02]">
                       <TableCell className="pl-6 text-xs text-white/80">{entry.model_name}</TableCell>
                       <TableCell>
