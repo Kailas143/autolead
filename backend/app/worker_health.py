@@ -23,8 +23,12 @@ if __name__ == "__main__":
     health_thread = threading.Thread(target=run_health_server, daemon=True)
     health_thread.start()
 
-    # Start the real Celery worker
-    print("Starting Celery worker...")
+    # Determine mode (worker or beat)
+    mode = "worker"
+    if "--beat" in sys.argv:
+        mode = "beat"
+
+    print(f"Starting Celery {mode}...")
     # This matches your Jenkinsfile args
-    cmd = ["celery", "-A", "app.celery_app.celery_app", "worker", "--loglevel=info"]
+    cmd = ["celery", "-A", "app.celery_app.celery_app", mode, "--loglevel=info"]
     subprocess.run(cmd)

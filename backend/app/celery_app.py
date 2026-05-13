@@ -15,8 +15,8 @@ celery_app.conf.update(
     task_serializer="json",
     accept_content=["json"],
     result_serializer="json",
-    timezone="UTC",
-    enable_utc=True,
+    timezone="Asia/Kolkata",
+    enable_utc=False,
     task_track_started=True,
     task_time_limit=3600,
 )
@@ -25,6 +25,6 @@ celery_app.conf.update(
 celery_app.conf.beat_schedule = {
     "check-follow-ups-every-hour": {
         "task": "app.workers.tasks.check_follow_ups",
-        "schedule": 3600.0, # Every hour
+        "schedule": 3600.0, # Every hour (production)
     },
 }

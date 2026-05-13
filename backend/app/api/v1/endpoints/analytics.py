@@ -1,4 +1,5 @@
 from typing import Any, List, Dict
+# pyrefly: ignore [missing-import]
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from sqlalchemy import func, cast, Date, Integer, case
@@ -8,6 +9,7 @@ from app.models.email import Email
 from app.models.reply import Reply
 from app.models.campaign import Sequence
 from datetime import datetime, timedelta
+import pytz
 
 router = APIRouter()
 
@@ -40,8 +42,11 @@ def get_analytics_stats(
 
     # 3. Engagement Over Time (last 7 days)
     last_7_days = []
+    ist = pytz.timezone('Asia/Kolkata')
+    now_ist = datetime.now(ist)
     for i in range(6, -1, -1):
-        day = (datetime.utcnow() - timedelta(days=i)).date()
+        # Use local time for day boundaries
+        day = (now_ist - timedelta(days=i)).date()
         # Use func.date for more reliable date comparison in Postgres/SQLite
         day_query = email_query.filter(func.date(Email.sent_at) == day)
         sent_count = day_query.count()
@@ -85,3 +90,34 @@ def get_analytics_stats(
         "engagement": last_7_days,
         "top_sequences": formatted_sequences
     }
+
+@router.get("/outreach-log")
+def get_outreach_log(
+    db: Session = Depends(deps.get_db),
+    current_user: Any = Depends(deps.get_current_active_user),
+) -> Any:
+    """
+    Get detailed outreach history for each lead.
+    """
+    leads = db.query(Lead).filter(Lead.user_id == current_user.id).all()
+    
+    log = []
+    for lead in leads:
+        # Get all emails sent to this lead, joined with sequence to get step numbers
+        emails = db.query(Email, Sequence.step_number).join(
+            Sequence, Email.sequence_id == Sequence.id
+        ).filter(Email.lead_id == lead.id).order_by(Email.sent_at.asc()).all()
+        
+        log.append({
+            "id": lead.id,
+            "lead_name": f"{lead.first_name} {lead.last_name}",
+            "company": lead.company,
+            "email": lead.email,
+            "industry": lead.industry,
+            "emails_sent": len(emails),
+            "last_step": emails[-1][1] if emails else 0,
+            "last_sent": emails[-1][0].sent_at if emails else None,
+            "status": "replied" if any(e[0].replied for e in emails) else ("active" if emails else "pending")
+        })
+    
+    return log

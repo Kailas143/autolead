@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from app.api.v1.endpoints import auth, campaigns, leads, analytics, webhooks, replies
+from app.api.v1.endpoints import auth, campaigns, leads, analytics, webhooks, replies, ai, admin
 
 api_router = APIRouter()
 api_router.include_router(auth.router, prefix="/auth", tags=["authentication"])
@@ -9,3 +9,5 @@ api_router.include_router(campaigns.router, prefix="/campaigns", tags=["campaign
 api_router.include_router(replies.router, prefix="/replies", tags=["replies"])
 api_router.include_router(analytics.router, prefix="/analytics", tags=["analytics"])
 api_router.include_router(webhooks.router, prefix="/webhooks", tags=["webhooks"])
+api_router.include_router(ai.router, prefix="/ai", tags=["ai"])
+api_router.include_router(admin.router, prefix="/admin", tags=["admin"])

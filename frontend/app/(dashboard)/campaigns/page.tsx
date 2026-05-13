@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import api from "@/lib/api";
 import { format } from "date-fns";
-import { Loader2, Play, Pause, BarChart3, Plus } from "lucide-react";
+import { Loader2, Play, Pause, BarChart3, Plus, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface Campaign {
@@ -27,30 +27,52 @@ interface Campaign {
 export default function CampaignsPage() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isActionLoading, setIsActionLoading] = useState<number | null>(null);
+
+  const fetchCampaigns = async () => {
+    try {
+      setLoading(true);
+      const response = await api.get("/campaigns/");
+      setCampaigns(response.data);
+    } catch (error) {
+      console.error("Failed to fetch campaigns:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    let isCancelled = false;
-
-    const fetchCampaigns = async () => {
-      try {
-        const response = await api.get("/campaigns/");
-        if (!isCancelled) {
-          setCampaigns(response.data);
-        }
-      } catch (error) {
-        console.error("Failed to fetch campaigns:", error);
-      } finally {
-        if (!isCancelled) {
-          setLoading(false);
-        }
-      }
-    };
-    void fetchCampaigns();
-
-    return () => {
-      isCancelled = true;
-    };
+    fetchCampaigns();
   }, []);
+
+  const handlePause = async (id: number, currentStatus: string) => {
+    try {
+      setIsActionLoading(id);
+      if (currentStatus === "active") {
+        await api.post(`/campaigns/${id}/pause`);
+      } else {
+        await api.post(`/campaigns/${id}/launch`);
+      }
+      await fetchCampaigns();
+    } catch (error) {
+      console.error("Failed to toggle campaign status:", error);
+    } finally {
+      setIsActionLoading(null);
+    }
+  };
+
+  const handleDelete = async (id: number) => {
+    if (!confirm("Are you sure you want to delete this campaign? This will remove all associated sequences.")) return;
+    try {
+      setIsActionLoading(id);
+      await api.delete(`/campaigns/${id}`);
+      await fetchCampaigns();
+    } catch (error) {
+      console.error("Failed to delete campaign:", error);
+    } finally {
+      setIsActionLoading(null);
+    }
+  };
 
   const CampaignCard = ({ campaign }: { campaign: Campaign }) => (
     <Card key={campaign.id} className="border-border/50 bg-card/30 backdrop-blur-sm hover:border-primary/50 transition-all duration-300 group">
@@ -61,12 +83,21 @@ export default function CampaignsPage() {
             Started {format(new Date(campaign.created_at), "MMM d, yyyy")}
           </p>
         </div>
-        <Badge className={cn(
-          "capitalize",
-          campaign.status === "active" ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20" : "bg-orange-500/10 text-orange-500 border-orange-500/20"
-        )}>
-          {campaign.status}
-        </Badge>
+        <div className="flex items-center gap-2">
+          <Badge className={cn(
+            "capitalize",
+            campaign.status === "active" ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20" : "bg-orange-500/10 text-orange-500 border-orange-500/20"
+          )}>
+            {campaign.status}
+          </Badge>
+          <button 
+            onClick={() => handleDelete(campaign.id)}
+            disabled={isActionLoading === campaign.id}
+            className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors opacity-0 group-hover:opacity-100"
+          >
+            {isActionLoading === campaign.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+          </button>
+        </div>
       </CardHeader>
       <CardContent className="space-y-6">
         <div className="grid grid-cols-3 gap-4">
@@ -98,8 +129,14 @@ export default function CampaignsPage() {
         </div>
 
         <div className="flex gap-3">
-          <button className="flex-1 py-2 rounded-xl border border-border/50 bg-white/5 text-sm font-medium hover:bg-white/10 transition-colors flex items-center justify-center gap-2">
-            {campaign.status === "active" ? (
+          <button 
+            onClick={() => handlePause(campaign.id, campaign.status)}
+            disabled={isActionLoading === campaign.id}
+            className="flex-1 py-2 rounded-xl border border-border/50 bg-white/5 text-sm font-medium hover:bg-white/10 transition-colors flex items-center justify-center gap-2"
+          >
+            {isActionLoading === campaign.id ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : campaign.status === "active" ? (
               <><Pause className="w-3.5 h-3.5" /> Pause</>
             ) : (
               <><Play className="w-3.5 h-3.5" /> Resume</>

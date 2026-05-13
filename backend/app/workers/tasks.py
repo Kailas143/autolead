@@ -6,6 +6,7 @@ from app.services.ai_service import ai_service
 from app.services.csv_service import csv_service
 from app.models.lead import Lead
 from app.models.campaign import Campaign, Sequence
+from app.models.email import Email
 from datetime import datetime, timedelta
 
 @celery_app.task
@@ -40,10 +41,14 @@ def process_csv_import(user_id: int, file_content: str):
         db.commit()
         print(f"DEBUG: Successfully committed leads to database")
     except Exception as e:
+        from app.services.audit_service import audit_service
+        audit_service.log_error(db, "CSV_IMPORT", f"Failed to process CSV for user {user_id}", e)
         print(f"DEBUG: Error processing CSV: {str(e)}")
         db.rollback()
     finally:
         db.close()
+
+import asyncio
 
 @celery_app.task
 def generate_ai_lines_task(lead_id: int):
@@ -52,13 +57,13 @@ def generate_ai_lines_task(lead_id: int):
         lead = db.query(Lead).filter(Lead.id == lead_id).first()
         if lead:
             # Generate personalized line
-            ai_line = ai_service.generate_personalization({
+            ai_line = asyncio.run(ai_service.generate_personalization({
                 "first_name": lead.first_name,
                 "last_name": lead.last_name,
                 "company": lead.company,
                 "title": lead.title,
                 "industry": lead.industry
-            })
+            }, db=db, user_id=lead.user_id))
             # For now, let's just log it or store it in a new column
             # In a real app, you'd have a lead_personalization table
             print(f"Generated AI Line for {lead.email}: {ai_line}")
@@ -110,6 +115,8 @@ def launch_campaign_task(campaign_id: int):
             send_campaign_email_task.delay(campaign.id, lead.id, first_step.id)
             
     except Exception as e:
+        from app.services.audit_service import audit_service
+        audit_service.log_error(db, "CAMPAIGN", f"Failed to launch campaign {campaign_id}", e)
         print(f"ERROR launching campaign: {str(e)}")
     finally:
         db.close()
@@ -176,13 +183,15 @@ def check_follow_ups():
 
                 next_seq = seq_map[next_step_num]
                 
-                # 6. Check if it's time to send
+                # 6. Check if it's time to send (Production: days)
                 wait_until = last_email.sent_at + timedelta(days=next_seq.delay_days)
                 if datetime.utcnow() >= wait_until.replace(tzinfo=None):
                     print(f"DEBUG: Time for follow-up! Sending Step {next_step_num} to lead {last_email.lead_id}")
                     send_campaign_email_task.delay(campaign.id, last_email.lead_id, next_seq.id)
 
     except Exception as e:
+        from app.services.audit_service import audit_service
+        audit_service.log_error(db, "CAMPAIGN", f"Follow-up engine failed: {str(e)}", e)
         print(f"ERROR in follow-up engine: {str(e)}")
     finally:
         db.close()

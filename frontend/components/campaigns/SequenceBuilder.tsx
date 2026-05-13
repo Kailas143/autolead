@@ -109,6 +109,25 @@ Sreekailas v.s
     }
   };
 
+  const handleGenerateAI = async (id: string, index: number) => {
+    try {
+      updateStep(id, "body", "Generating professional follow-up...");
+      
+      const leadData = {
+        first_name: "{first_name}",
+        company: "{company}",
+        industry: industry === "All Industries" ? "consultancy" : industry,
+      };
+
+      const response = await api.post("/ai/generate-followup", { lead_data: leadData });
+      updateStep(id, "body", response.data.content);
+    } catch (error) {
+      console.error("Failed to generate AI follow-up:", error);
+      alert("Failed to generate AI content. Using default.");
+      updateStep(id, "body", "Hi {first_name},\n\nJust wanted to follow up on my previous email...");
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Campaign Settings */}
@@ -134,6 +153,7 @@ Sreekailas v.s
                 <option>All Industries</option>
                 <option>SaaS</option>
                 <option>Healthcare</option>
+                <option>Clinic</option>
                 <option>Education</option>
                 <option>Real Estate</option>
                 <option>Logistics</option>
@@ -188,9 +208,18 @@ Sreekailas v.s
                 </span>
                 <span className="text-sm font-medium text-white">Step {index + 1}</span>
                 {index > 0 && (
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground ml-4 bg-white/5 px-2 py-1 rounded-md">
-                    <Clock className="w-3 h-3" />
-                    Wait {step.delay} days
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground ml-4 bg-white/5 px-3 py-1 rounded-lg border border-white/5 group-hover:border-primary/30 transition-all">
+                    <Clock className="w-3.5 h-3.5 text-primary" />
+                    <span className="whitespace-nowrap">Wait</span>
+                    <input 
+                      type="number" 
+                      min="1"
+                      max="30"
+                      value={step.delay}
+                      onChange={(e) => updateStep(step.id, "delay", parseInt(e.target.value) || 1)}
+                      className="w-10 bg-black/40 border-none text-white text-center font-bold focus:ring-0 cursor-pointer hover:text-primary transition-colors"
+                    />
+                    <span className="whitespace-nowrap">days</span>
                   </div>
                 )}
               </div>
@@ -221,9 +250,14 @@ Sreekailas v.s
               <div className="space-y-2">
                 <div className="flex justify-between items-center">
                   <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Email Body</label>
-                  <Button variant="ghost" size="sm" className="h-8 text-primary hover:text-primary hover:bg-primary/10 gap-2">
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    className="h-8 text-primary hover:text-primary hover:bg-primary/10 gap-2"
+                    onClick={() => handleGenerateAI(step.id, index)}
+                  >
                     <Sparkles className="w-3 h-3" />
-                    AI Personalize
+                    AI Generate
                   </Button>
                 </div>
                 <textarea

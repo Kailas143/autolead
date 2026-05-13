@@ -9,7 +9,8 @@ import {
   BarChart3, 
   Settings, 
   LogOut,
-  Bell
+  Bell,
+  ShieldCheck
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -20,8 +21,10 @@ const sidebarItems = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { name: "Leads", href: "/leads", icon: Users },
   { name: "Campaigns", href: "/campaigns", icon: Send },
+  { name: "Outreach Log", href: "/outreach", icon: Mail },
   { name: "Inbox", href: "/inbox", icon: Mail },
   { name: "Analytics", href: "/analytics", icon: BarChart3 },
+  { name: "Admin Console", href: "/admin", icon: ShieldCheck },
   { name: "Settings", href: "/settings", icon: Settings },
 ];
 

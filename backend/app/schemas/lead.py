@@ -18,7 +18,15 @@ class LeadCreate(LeadBase):
     pass
 
 
-class LeadUpdate(LeadBase):
+class LeadUpdate(BaseModel):
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    email: Optional[str] = None
+    company: Optional[str] = None
+    title: Optional[str] = None
+    linkedin_url: Optional[str] = None
+    website: Optional[str] = None
+    industry: Optional[str] = None
     status: Optional[str] = None
 
 

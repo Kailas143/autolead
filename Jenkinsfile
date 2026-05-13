@@ -9,6 +9,7 @@ pipeline {
         CLOUD_RUN_REGION = "asia-south1"
         BACKEND_SERVICE_NAME = "autolead-backend"
         WORKER_SERVICE_NAME = "autolead-worker"
+        BEAT_SERVICE_NAME = "autolead-beat"
         FRONTEND_SERVICE_NAME = "autolead-frontend"
         DEPLOY_BRANCH = "master"
 
@@ -177,15 +178,59 @@ pipeline {
                             gcloud auth activate-service-account --key-file="$GOOGLE_APPLICATION_CREDENTIALS"
                             gcloud config set project ${GCP_PROJECT_ID}
                             gcloud run deploy ${WORKER_SERVICE_NAME} \
-                              --image ${GAR_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/${GAR_REPOSITORY}/${BACKEND_IMAGE}:${BUILD_NUMBER} \
-                              --region ${CLOUD_RUN_REGION} \
-                              --platform managed \
-                              --no-allow-unauthenticated \
-                              --command "python" \
-                              --args="-m,app.worker_health" \
-                              --no-cpu-throttling \
-                              --min-instances 1 \
-                              --env-vars-file "$BACKEND_ENV_FILE"
+                                --image ${GAR_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/${GAR_REPOSITORY}/${BACKEND_IMAGE}:${BUILD_NUMBER} \
+                                --region ${CLOUD_RUN_REGION} \
+                                --platform managed \
+                                --no-allow-unauthenticated \
+                                --command "python" \
+                                --args="-m,app.worker_health" \
+                                --no-cpu-throttling \
+                                --min-instances 1 \
+                                --env-vars-file "$BACKEND_ENV_FILE"
+                        '''
+                    }
+                }
+            }
+        }
+
+        stage('Deploy Beat to Cloud Run') {
+            agent {
+                docker { 
+                    image 'google/cloud-sdk:latest' 
+                    reuseNode true
+                }
+            }
+            when {
+                expression {
+                    def hasDeployConfig = env.GCP_PROJECT_ID?.trim() &&
+                        env.GCP_SA_CREDENTIALS_ID?.trim() &&
+                        env.BACKEND_ENV_VARS_FILE_CREDENTIALS_ID?.trim()
+                    def branchMatches = !env.BRANCH_NAME?.trim() || env.BRANCH_NAME == env.DEPLOY_BRANCH
+                    return hasDeployConfig && branchMatches
+                }
+            }
+            steps {
+                script {
+                    def registry = "${env.GAR_REGION}-docker.pkg.dev/${env.GCP_PROJECT_ID}/${env.GAR_REPOSITORY}"
+                    withCredentials([
+                        file(credentialsId: env.GCP_SA_CREDENTIALS_ID, variable: 'GOOGLE_APPLICATION_CREDENTIALS'),
+                        file(credentialsId: env.BACKEND_ENV_VARS_FILE_CREDENTIALS_ID, variable: 'BACKEND_ENV_FILE')
+                    ]) {
+                        // Beat is a singleton scheduler, we use --min-instances 1 to keep it active
+                        sh '''
+                            gcloud auth activate-service-account --key-file="$GOOGLE_APPLICATION_CREDENTIALS"
+                            gcloud config set project ${GCP_PROJECT_ID}
+                            gcloud run deploy ${BEAT_SERVICE_NAME} \
+                                --image ${GAR_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/${GAR_REPOSITORY}/${BACKEND_IMAGE}:${BUILD_NUMBER} \
+                                --region ${CLOUD_RUN_REGION} \
+                                --platform managed \
+                                --no-allow-unauthenticated \
+                                --command "python" \
+                                --args="-m,app.worker_health,--beat" \
+                                --no-cpu-throttling \
+                                --min-instances 1 \
+                                --max-instances 1 \
+                                --env-vars-file "$BACKEND_ENV_FILE"
                         '''
                     }
                 }

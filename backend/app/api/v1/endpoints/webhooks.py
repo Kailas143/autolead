@@ -172,7 +172,7 @@ async def handle_incoming_reply(
     try:
         # Pass the message or subject to the classifier
         text_to_classify = message_body.strip() if (message_body and message_body.strip()) else subject
-        classification = await ai_service.classify_reply(text_to_classify)
+        classification = await ai_service.classify_reply(text_to_classify, db=db, user_id=lead.user_id)
     except Exception as e:
         print(f"ERROR: AI classification failed: {str(e)}")
     

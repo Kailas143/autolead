@@ -12,15 +12,17 @@ from app.prompts.outreach import (
     CLINIC_PROMPT,
     ECOMMERCE_PROMPT
 )
+from typing import Optional, Any, Tuple
+from sqlalchemy.orm import Session
 
 class AIService:
     def __init__(self):
         api_key = settings.GEMINI_API_KEY or settings.GOOGLE_API_KEY
         genai.configure(api_key=api_key)
-        # Using gemini-2.5-flash as requested
-        self.model_name = "gemini-2.5-flash"
+        # Using gemini-flash-latest for stable performance
+        self.model_name = "gemini-flash-latest"
 
-    async def _generate(self, prompt: str, temperature: float = 0.7) -> str:
+    async def _generate(self, prompt: str, temperature: float = 0.7) -> tuple[str, Any]:
         """
         Internal helper to generate content with a specific temperature.
         """
@@ -37,9 +39,27 @@ class AIService:
             prompt,
             generation_config=generation_config
         )
-        return response.text.strip()
+        text = response.text.strip()
+        
+        # --- AI CLEANER: Post-process to ensure correct tags ---
+        import re
+        # Convert AI's "helpful" phrases back to our system tags
+        replacements = {
+            r"(?i)your company": "{company}",
+            r"(?i)the your industry": "{industry}",
+            r"(?i)your industry": "{industry}",
+            r"(?i)the industry": "{industry}",
+            r"(?i)the company": "{company}",
+            r"\[\[COMPANY\]\]": "{company}",
+            r"\[\[INDUSTRY\]\]": "{industry}",
+            r"\[\[FIRST_NAME\]\]": "{first_name}",
+        }
+        for pattern, replacement in replacements.items():
+            text = re.sub(pattern, replacement, text)
+            
+        return text, response.usage_metadata
 
-    async def generate_personalization(self, lead_data: dict, company_info: str = "") -> str:
+    async def generate_personalization(self, lead_data: dict, db: Optional[Session] = None, user_id: Optional[int] = None) -> str:
         """
         Generates a short personalized intro line for a lead.
         """
@@ -47,23 +67,31 @@ class AIService:
             company=lead_data.get("company", "Unknown"),
             industry=lead_data.get("industry", "Unknown"),
             job_title=lead_data.get("title") or lead_data.get("job_title", "Professional"),
-            website_summary=company_info or lead_data.get("company_info", "No summary available")
+            website_summary=lead_data.get("company_info", "No summary available")
         )
         
-        return await self._generate(prompt, temperature=0.7)
+        text, usage = await self._generate(prompt, temperature=0.7)
+        if db and user_id:
+            from app.services.audit_service import audit_service
+            audit_service.track_ai_usage(db, user_id, self.model_name, usage.prompt_token_count, usage.candidates_token_count, "personalization")
+        return text
 
-    async def generate_subject_lines(self, company: str, industry: str) -> list[str]:
+    async def generate_subject_lines(self, company: str, industry: str, db: Optional[Session] = None, user_id: Optional[int] = None) -> list[str]:
         """
         Generates 5 professional cold email subject lines.
         """
         prompt = SUBJECT_PROMPT.format(company=company, industry=industry)
-        response_text = await self._generate(prompt, temperature=0.8)
+        response_text, usage = await self._generate(prompt, temperature=0.8)
         
+        if db and user_id:
+            from app.services.audit_service import audit_service
+            audit_service.track_ai_usage(db, user_id, self.model_name, usage.prompt_token_count, usage.candidates_token_count, "subject_lines")
+
         # Clean up the output (remove numbers, bullets, etc.)
         lines = [line.strip().strip("-").strip("12345. ").strip('"') for line in response_text.split("\n") if line.strip()]
         return lines[:5]
 
-    async def generate_full_email(self, lead_data: dict) -> str:
+    async def generate_full_email(self, lead_data: dict, db: Optional[Session] = None, user_id: Optional[int] = None) -> str:
         """
         Generates a full concise cold outreach email, choosing a template based on industry.
         """
@@ -84,15 +112,35 @@ class AIService:
             job_title=lead_data.get("title") or lead_data.get("job_title", "Professional")
         )
         
-        return await self._generate(prompt, temperature=0.7)
+        text, usage = await self._generate(prompt, temperature=0.7)
+        if db and user_id:
+            from app.services.audit_service import audit_service
+            audit_service.track_ai_usage(db, user_id, self.model_name, usage.prompt_token_count, usage.candidates_token_count, "full_email")
+        return text
 
-    async def generate_followup(self) -> str:
+    async def generate_followup(self, lead_data: dict, db: Optional[Session] = None, user_id: Optional[int] = None) -> str:
         """
-        Generates a short follow-up email.
+        Generates a short professional follow-up email.
         """
-        return await self._generate(FOLLOWUP_PROMPT, temperature=0.7)
+        prompt = FOLLOWUP_PROMPT.format(
+            first_name=lead_data.get("first_name", "there"),
+            company=lead_data.get("company", "your company"),
+            industry=lead_data.get("industry", "your industry")
+        )
+        text, usage = await self._generate(prompt, temperature=0.7)
+        
+        if db and user_id:
+            from app.services.audit_service import audit_service
+            audit_service.track_ai_usage(
+                db, user_id, self.model_name, 
+                usage.prompt_token_count, 
+                usage.candidates_token_count, 
+                "followup_generation"
+            )
+            
+        return text
 
-    async def classify_reply(self, email_body: str) -> str:
+    async def classify_reply(self, email_body: str, db: Optional[Session] = None, user_id: Optional[int] = None) -> str:
         """
         Classifies an email reply into: interested, not_interested, later, booked_call.
         """
@@ -100,8 +148,12 @@ class AIService:
             return "other"
             
         prompt = REPLY_CLASSIFIER_PROMPT.format(reply_text=email_body)
-        classification = await self._generate(prompt, temperature=0.1)
+        classification, usage = await self._generate(prompt, temperature=0.1)
         
+        if db and user_id:
+            from app.services.audit_service import audit_service
+            audit_service.track_ai_usage(db, user_id, self.model_name, usage.prompt_token_count, usage.candidates_token_count, "reply_classification")
+
         # Clean up classification
         classification = classification.lower().strip().replace(" ", "_").replace(".", "")
         

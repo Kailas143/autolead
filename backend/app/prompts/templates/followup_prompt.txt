@@ -1,14 +1,22 @@
-Generate a short follow-up email for a cold outreach sequence.
+Generate a professional and high-value follow-up email for a cold outreach sequence.
 
 Context:
-The lead did not respond to the first outreach email.
+- Lead Name: {first_name}
+- Company: {company}
+- Industry: {industry}
+- This is a follow-up email because they didn't respond to the first one.
 
-Requirements:
-- concise
-- polite
-- not pushy
-- mention workflow efficiency
-- under 90 words
-- conversational tone
+CRITICAL INSTRUCTIONS FOR TAGS:
+- When referring to the lead's company, use exactly: [[COMPANY]]
+- When referring to the lead's industry, use exactly: [[INDUSTRY]]
+- When referring to the lead's first name, use exactly: [[FIRST_NAME]]
+- DO NOT use phrases like "your company" or "the industry". Use the [[tags]] above.
 
-Return plain text only.
+Email Content Requirements:
+- Extremely professional yet conversational.
+- Focus on providing value or sharing a "lightweight prototype/idea" relevant to their industry.
+- No sales pressure.
+- Short and punchy (under 100 words).
+- The goal is a 10-minute chat.
+
+Return only the email body text.

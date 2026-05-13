@@ -141,3 +141,41 @@ def launch_campaign(
     launch_campaign_task.delay(campaign_id)
     
     return {"status": "success", "message": "Campaign launch triggered"}
+
+@router.post("/{campaign_id}/pause")
+def pause_campaign(
+    *,
+    db: Session = Depends(deps.get_db),
+    campaign_id: int,
+    current_user: models.User = Depends(deps.get_current_active_user),
+) -> Any:
+    """
+    Pause an active campaign.
+    """
+    campaign = db.query(models.Campaign).filter(models.Campaign.id == campaign_id, models.Campaign.user_id == current_user.id).first()
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+    
+    campaign.status = "paused"
+    db.commit()
+    return {"status": "success", "message": "Campaign paused"}
+
+@router.delete("/{campaign_id}")
+def delete_campaign(
+    *,
+    db: Session = Depends(deps.get_db),
+    campaign_id: int,
+    current_user: models.User = Depends(deps.get_current_active_user),
+) -> Any:
+    """
+    Delete a campaign and its associated sequences.
+    """
+    campaign = db.query(models.Campaign).filter(models.Campaign.id == campaign_id, models.Campaign.user_id == current_user.id).first()
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+    
+    # Delete associated sequences first (SQLAlchemy should handle this if cascade is set, but explicit is safer)
+    db.query(models.Sequence).filter(models.Sequence.campaign_id == campaign_id).delete()
+    db.delete(campaign)
+    db.commit()
+    return {"status": "success", "message": "Campaign deleted"}
