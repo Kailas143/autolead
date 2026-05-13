@@ -152,7 +152,12 @@ def delete_lead(
     lead = db.query(models.Lead).filter(models.Lead.id == lead_id, models.Lead.user_id == current_user.id).first()
     if not lead:
         raise HTTPException(status_code=404, detail="Lead not found")
-    
+
+    deleted_lead = schemas.Lead.model_validate(lead)
+
+    # Delete dependents first to satisfy the current FK constraints.
+    db.query(models.Reply).filter(models.Reply.lead_id == lead_id).delete(synchronize_session=False)
+    db.query(models.Email).filter(models.Email.lead_id == lead_id).delete(synchronize_session=False)
     db.delete(lead)
     db.commit()
-    return lead
+    return deleted_lead
