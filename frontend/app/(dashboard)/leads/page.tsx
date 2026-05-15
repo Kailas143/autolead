@@ -116,7 +116,10 @@ export default function LeadsPage() {
   }, []);
 
   useEffect(() => {
-    void fetchCampaigns();
+    const loadCampaigns = async () => {
+      await fetchCampaigns();
+    };
+    void loadCampaigns();
   }, [fetchCampaigns]);
 
   useEffect(() => {

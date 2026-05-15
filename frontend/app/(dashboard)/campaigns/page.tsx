@@ -48,7 +48,10 @@ export default function CampaignsPage() {
   };
 
   useEffect(() => {
-    Promise.resolve().then(() => fetchCampaigns());
+    const loadCampaigns = async () => {
+      await fetchCampaigns();
+    };
+    void loadCampaigns();
   }, []);
 
   const handlePause = async (id: number, currentStatus: string) => {
