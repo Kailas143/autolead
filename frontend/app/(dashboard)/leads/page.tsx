@@ -120,12 +120,15 @@ export default function LeadsPage() {
   }, [fetchCampaigns]);
 
   useEffect(() => {
-    if (selectedCampaignId !== null) {
-      void fetchCampaignDetails(selectedCampaignId);
-    } else {
-      setSequences([]);
-      setSelectedSequenceId(null);
-    }
+    const syncCampaignData = async () => {
+      if (selectedCampaignId !== null) {
+        await fetchCampaignDetails(selectedCampaignId);
+      } else {
+        setSequences([]);
+        setSelectedSequenceId(null);
+      }
+    };
+    void syncCampaignData();
   }, [selectedCampaignId, fetchCampaignDetails]);
 
   useEffect(() => {
