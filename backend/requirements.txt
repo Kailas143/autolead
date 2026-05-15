@@ -11,7 +11,7 @@ psycopg[binary]==3.3.4
 python-jose==3.3.0
 passlib[bcrypt]==1.7.4
 python-multipart==0.0.6
-email-validator==2.0.0
+email-validator
 httpx==0.28.1
 resend==2.4.0
 requests>=2.31.0
@@ -23,5 +23,5 @@ slowapi==0.1.9
 aiofiles==23.2.1
 pytz==2025.1
 PyJWT
-postmark-python
+postmark
 
