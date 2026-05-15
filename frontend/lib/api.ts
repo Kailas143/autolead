@@ -1,9 +1,23 @@
 import axios from "axios";
 
-const API_URL = (process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000/api/v1").trim();
+const PROD_API_URL = "https://autolead-backend-145662328298.asia-south1.run.app/api/v1";
+
+const getApiUrl = () => {
+  const configuredUrl = process.env.NEXT_PUBLIC_API_URL?.trim();
+  if (configuredUrl) {
+    return configuredUrl;
+  }
+
+  if (typeof window !== "undefined") {
+    return window.location.hostname === "localhost" ? "http://127.0.0.1:8000/api/v1" : PROD_API_URL;
+  }
+
+  return PROD_API_URL;
+};
 
 const api = axios.create({
-  baseURL: API_URL,
+  baseURL: getApiUrl(),
+  timeout: 60000,
   headers: {
     "Content-Type": "application/json",
   },

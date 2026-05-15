@@ -42,8 +42,15 @@ function LoginContent() {
       setAuth({ id: 0, email, full_name: "User" }, access_token);
       router.push("/dashboard");
     } catch (err: unknown) {
-      const error = err as { response?: { data?: { detail?: string } } };
-      setError(error.response?.data?.detail || "Failed to sign in. Please check your credentials.");
+      const error = err as {
+        code?: string;
+        response?: { data?: { detail?: string } };
+      };
+      if (error.code === "ECONNABORTED") {
+        setError("Login timed out while contacting the server. Please try again.");
+      } else {
+        setError(error.response?.data?.detail || "Failed to sign in. Please check your credentials.");
+      }
     } finally {
       setLoading(false);
     }

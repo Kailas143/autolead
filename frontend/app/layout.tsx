@@ -27,6 +27,8 @@ export const viewport = {
   themeColor: "#050505",
 };
 
+import { Toaster } from "sonner";
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -37,6 +39,7 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col bg-background text-foreground">
         <PWARegistrar />
         {children}
+        <Toaster position="top-right" expand={true} richColors theme="dark" />
       </body>
     </html>
   );

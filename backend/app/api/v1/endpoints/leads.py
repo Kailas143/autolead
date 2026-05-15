@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from app import schemas, models
 from app.api import deps
 from app.services.csv_service import csv_service
+from app.services.email_service import email_service
 from app.workers.tasks import process_csv_import
 
 router = APIRouter()
@@ -20,6 +21,26 @@ def read_leads(
     """
     leads = db.query(models.Lead).filter(models.Lead.user_id == current_user.id).offset(skip).limit(limit).all()
     return leads
+
+@router.post("/", response_model=schemas.Lead)
+def create_lead(
+    *,
+    db: Session = Depends(deps.get_db),
+    lead_in: schemas.LeadCreate,
+    current_user: models.User = Depends(deps.get_current_active_user),
+) -> Any:
+    """
+    Create a new lead manually.
+    """
+    lead = models.Lead(
+        **lead_in.dict(),
+        user_id=current_user.id,
+        status="new"
+    )
+    db.add(lead)
+    db.commit()
+    db.refresh(lead)
+    return lead
 
 @router.post("/upload")
 async def upload_leads(
@@ -52,10 +73,49 @@ def read_lead_by_id(
     """
     Get lead by ID.
     """
-    lead = db.query(models.Lead).filter(models.Lead.id == lead_id).first()
+    lead = db.query(models.Lead).filter(models.Lead.id == lead_id, models.Lead.user_id == current_user.id).first()
     if not lead:
         raise HTTPException(status_code=404, detail="Lead not found")
     return lead
+
+@router.post("/{lead_id}/send")
+async def send_lead_email(
+    *,
+    db: Session = Depends(deps.get_db),
+    lead_id: int,
+    email_send: schemas.EmailSendRequest,
+    current_user: models.User = Depends(deps.get_current_active_user),
+) -> Any:
+    """
+    Send a single email to a lead using a campaign sequence.
+    """
+    lead = db.query(models.Lead).filter(models.Lead.id == lead_id, models.Lead.user_id == current_user.id).first()
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead not found")
+
+    campaign = db.query(models.Campaign).filter(
+        models.Campaign.id == email_send.campaign_id,
+        models.Campaign.user_id == current_user.id,
+    ).first()
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+
+    sequence = db.query(models.Sequence).filter(
+        models.Sequence.id == email_send.sequence_id,
+        models.Sequence.campaign_id == campaign.id,
+    ).first()
+    if not sequence:
+        raise HTTPException(status_code=404, detail="Sequence not found")
+
+    result = await email_service.send_cold_email(db, campaign.id, lead.id, sequence.id)
+    if result.get("status") != "success":
+        raise HTTPException(status_code=500, detail=result.get("message", "Failed to send email"))
+
+    return {
+        "status": "success",
+        "email_id": result.get("email_id"),
+        "resend_id": result.get("resend_id"),
+    }
 
 @router.get("/{lead_id}/thread")
 def read_lead_thread(

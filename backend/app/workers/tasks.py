@@ -8,7 +8,7 @@ from app.models.lead import Lead
 from app.models.campaign import Campaign, Sequence
 from app.models.email import Email
 from datetime import datetime, timedelta, timezone
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from zoneinfo import ZoneInfo
 
 APP_TZ = ZoneInfo(settings.APP_TIMEZONE)
@@ -64,7 +64,9 @@ def _remaining_daily_capacity(db, campaign: Campaign, now_utc: datetime) -> int:
 def _lead_query_for_campaign(db, campaign: Campaign):
     query = db.query(Lead).filter(Lead.user_id == campaign.user_id)
     if campaign.target_industry and campaign.target_industry != "All Industries":
-        query = query.filter(Lead.industry.ilike(f"%{campaign.target_industry}%"))
+        industries = [industry.strip() for industry in campaign.target_industry.split(",") if industry.strip()]
+        if industries:
+            query = query.filter(or_(*[Lead.industry.ilike(f"%{industry}%") for industry in industries]))
     return query
 
 
@@ -161,7 +163,8 @@ def generate_ai_lines_task(lead_id: int):
 def send_campaign_email_task(campaign_id: int, lead_id: int, sequence_id: int):
     db = SessionLocal()
     try:
-        email_service.send_cold_email(db, campaign_id, lead_id, sequence_id)
+        import asyncio
+        asyncio.run(email_service.send_cold_email(db, campaign_id, lead_id, sequence_id))
     finally:
         db.close()
 

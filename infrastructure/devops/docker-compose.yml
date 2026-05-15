@@ -20,7 +20,7 @@ services:
       - GITEA__database__USER=gitea
       - GITEA__database__PASSWD=gitea
     ports:
-      - "3000:3000"
+      - "3001:3000"
       - "2222:22"
     volumes:
       - ./gitea-data:/data
@@ -38,7 +38,7 @@ services:
       - 8.8.4.4
     ports:
       - "8080:8080"
-      - "50000:50000"
+      - "50005:50000"
     volumes:
       - ./jenkins-data:/var/jenkins_home
       - /var/run/docker.sock:/var/run/docker.sock

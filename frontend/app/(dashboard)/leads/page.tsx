@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState, useCallback } from "react";
 import CSVUploader from "@/components/leads/CSVUploader";
+import { toast } from "sonner";
 import api from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { 
@@ -14,7 +15,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Eye, Edit, Trash2, Loader2, Mail } from "lucide-react";
+import { Eye, Edit, Trash2, Loader2, Mail, Plus } from "lucide-react";
 import { 
   Dialog, 
   DialogContent, 
@@ -35,6 +36,18 @@ interface Lead {
   status: string;
 }
 
+interface Campaign {
+  id: number;
+  name: string;
+}
+
+interface Sequence {
+  id: number;
+  step_number: number;
+  subject: string;
+  body: string;
+}
+
 export default function LeadsPage() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
@@ -43,6 +56,21 @@ export default function LeadsPage() {
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState<number | null>(null);
   const [leadStats, setLeadStats] = useState<{ campaign_name: string; total_emails: number } | null>(null);
+  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [sequences, setSequences] = useState<Sequence[]>([]);
+  const [selectedCampaignId, setSelectedCampaignId] = useState<number | null>(null);
+  const [selectedSequenceId, setSelectedSequenceId] = useState<number | null>(null);
+  const [isSendDialogOpen, setIsSendDialogOpen] = useState(false);
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [isSending, setIsSending] = useState(false);
+  const [newLead, setNewLead] = useState({
+    first_name: "",
+    last_name: "",
+    email: "",
+    company: "",
+    industry: "",
+    title: "",
+  });
 
   const fetchLeads = useCallback(async () => {
     try {
@@ -58,6 +86,47 @@ export default function LeadsPage() {
   useEffect(() => {
     Promise.resolve().then(() => fetchLeads());
   }, [fetchLeads]);
+
+  const fetchCampaigns = useCallback(async () => {
+    try {
+      const response = await api.get("/campaigns/");
+      setCampaigns(response.data);
+      if (response.data.length > 0) {
+        setSelectedCampaignId((current) => current ?? response.data[0].id);
+      }
+    } catch (error) {
+      console.error("Failed to fetch campaigns:", error);
+    }
+  }, []);
+
+  const fetchCampaignDetails = useCallback(async (campaignId: number) => {
+    try {
+      const response = await api.get(`/campaigns/${campaignId}`);
+      setSequences(response.data.sequences || []);
+      if (response.data.sequences && response.data.sequences.length > 0) {
+        setSelectedSequenceId(response.data.sequences[0].id);
+      } else {
+        setSelectedSequenceId(null);
+      }
+    } catch (error) {
+      console.error("Failed to fetch campaign details:", error);
+      setSequences([]);
+      setSelectedSequenceId(null);
+    }
+  }, []);
+
+  useEffect(() => {
+    void fetchCampaigns();
+  }, [fetchCampaigns]);
+
+  useEffect(() => {
+    if (selectedCampaignId !== null) {
+      void fetchCampaignDetails(selectedCampaignId);
+    } else {
+      setSequences([]);
+      setSelectedSequenceId(null);
+    }
+  }, [selectedCampaignId, fetchCampaignDetails]);
 
   useEffect(() => {
     if (isViewDialogOpen && selectedLead) {
@@ -78,16 +147,57 @@ export default function LeadsPage() {
     }
   }, [isViewDialogOpen, selectedLead]);
 
+  const handleSendEmail = async () => {
+    if (!selectedLead || !selectedCampaignId || !selectedSequenceId) return;
+
+    try {
+      setIsSending(true);
+      await api.post(`/leads/${selectedLead.id}/send`, {
+        campaign_id: selectedCampaignId,
+        sequence_id: selectedSequenceId,
+      });
+      toast.success("Email has been sent successfully.");
+      setIsSendDialogOpen(false);
+    } catch (error) {
+      console.error("Failed to send email:", error);
+      toast.error("Failed to send email. Please try again.");
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  const handleCreateLead = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const response = await api.post("/leads/", newLead);
+      setLeads([response.data, ...leads]);
+      setIsAddDialogOpen(false);
+      setNewLead({
+        first_name: "",
+        last_name: "",
+        email: "",
+        company: "",
+        industry: "",
+        title: "",
+      });
+      toast.success("Lead created successfully.");
+    } catch (error) {
+      console.error("Failed to create lead:", error);
+      toast.error("Failed to create lead. Please check all fields.");
+    }
+  };
+
   const handleDelete = async (id: number) => {
     if (!confirm("Are you sure you want to delete this lead?")) return;
     
     try {
       setIsDeleting(id);
       await api.delete(`/leads/${id}`);
-      setLeads(leads.filter(l => l.id !== id));
+      setLeads(leads.filter((l) => l.id !== id));
+      toast.success("Lead deleted successfully.");
     } catch (error) {
       console.error("Failed to delete lead:", error);
-      alert("Failed to delete lead");
+      toast.error("Failed to delete lead");
     } finally {
       setIsDeleting(null);
     }
@@ -101,9 +211,10 @@ export default function LeadsPage() {
       const response = await api.put(`/leads/${selectedLead.id}`, selectedLead);
       setLeads(leads.map(l => l.id === selectedLead.id ? response.data : l));
       setIsEditDialogOpen(false);
+      toast.success("Lead details updated.");
     } catch (error) {
       console.error("Failed to update lead:", error);
-      alert("Failed to update lead");
+      toast.error("Failed to update lead");
     }
   };
 
@@ -131,6 +242,16 @@ export default function LeadsPage() {
                 if (attempts >= 5) clearInterval(interval);
               }, 2000);
             }} />
+            <div className="mt-6 pt-6 border-t border-white/5">
+              <Button 
+                onClick={() => setIsAddDialogOpen(true)} 
+                variant="outline" 
+                className="w-full h-12 border-white/10 hover:bg-white/5 gap-2 group"
+              >
+                <Plus className="w-4 h-4 text-primary group-hover:scale-125 transition-transform" />
+                Manual Entry
+              </Button>
+            </div>
           </CardContent>
         </Card>
 
@@ -197,6 +318,17 @@ export default function LeadsPage() {
                             className="h-8 w-8 hover:bg-white/10 text-muted-foreground hover:text-white"
                             onClick={() => {
                               setSelectedLead(lead);
+                              setIsSendDialogOpen(true);
+                            }}
+                          >
+                            <Mail className="w-4 h-4" />
+                          </Button>
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-8 w-8 hover:bg-white/10 text-muted-foreground hover:text-white"
+                            onClick={() => {
+                              setSelectedLead(lead);
                               setIsViewDialogOpen(true);
                             }}
                           >
@@ -232,6 +364,81 @@ export default function LeadsPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Send Email Dialog */}
+      <Dialog open={isSendDialogOpen} onOpenChange={setIsSendDialogOpen}>
+        <DialogContent className="bg-[#0a0a0a] border-white/10 text-white sm:max-w-[560px]">
+          <DialogHeader>
+            <DialogTitle>Send Email to {selectedLead?.first_name} {selectedLead?.last_name}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            {campaigns.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-white/10 bg-white/5 p-5 text-sm text-muted-foreground">
+                No campaigns available. Create a campaign with at least one sequence before sending a one-off email.
+              </div>
+            ) : (
+              <>
+                <div className="space-y-2">
+                  <label className="text-xs text-muted-foreground uppercase tracking-widest font-bold">Campaign</label>
+                  <select
+                    value={selectedCampaignId ?? undefined}
+                    onChange={(event) => setSelectedCampaignId(Number(event.target.value))}
+                    className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-3 text-sm text-white outline-none transition focus:border-white/30"
+                  >
+                    {campaigns.map((campaign) => (
+                      <option key={campaign.id} value={campaign.id} className="bg-[#0f0f0f] text-white">
+                        {campaign.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs text-muted-foreground uppercase tracking-widest font-bold">Sequence Step</label>
+                  <select
+                    value={selectedSequenceId ?? undefined}
+                    onChange={(event) => setSelectedSequenceId(Number(event.target.value))}
+                    className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-3 text-sm text-white outline-none transition focus:border-white/30"
+                    disabled={sequences.length === 0}
+                  >
+                    {sequences.length === 0 ? (
+                      <option value="">No sequences available</option>
+                    ) : (
+                      sequences.map((sequence) => (
+                        <option key={sequence.id} value={sequence.id} className="bg-[#0f0f0f] text-white">
+                          Step {sequence.step_number}: {sequence.subject}
+                        </option>
+                      ))
+                    )}
+                  </select>
+                </div>
+
+                {selectedSequenceId ? (
+                  <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-muted-foreground">
+                    <p className="font-semibold text-white">Preview</p>
+                    <p className="mt-2 text-sm text-white/80">
+                      {sequences.find((sequence) => sequence.id === selectedSequenceId)?.subject || "Select a sequence to preview the subject."}
+                    </p>
+                  </div>
+                ) : null}
+              </>
+            )}
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="ghost" onClick={() => setIsSendDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              className="px-8 shadow-lg shadow-primary/20"
+              disabled={isSending || !selectedCampaignId || !selectedSequenceId || campaigns.length === 0}
+              onClick={handleSendEmail}
+            >
+              {isSending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Send Email"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Edit Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
@@ -347,6 +554,83 @@ export default function LeadsPage() {
           <DialogFooter>
             <Button className="w-full h-12 text-sm font-semibold" onClick={() => setIsViewDialogOpen(false)}>Close Profile</Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Lead Dialog */}
+      <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+        <DialogContent className="bg-[#0a0a0a] border-white/10 text-white sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Add New Lead</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleCreateLead} className="space-y-4 py-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-xs text-muted-foreground uppercase tracking-widest font-bold">First Name</label>
+                <Input 
+                  required
+                  value={newLead.first_name} 
+                  onChange={e => setNewLead(prev => ({...prev, first_name: e.target.value}))}
+                  className="bg-white/5 border-white/10 h-11"
+                  placeholder="John"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs text-muted-foreground uppercase tracking-widest font-bold">Last Name</label>
+                <Input 
+                  required
+                  value={newLead.last_name} 
+                  onChange={e => setNewLead(prev => ({...prev, last_name: e.target.value}))}
+                  className="bg-white/5 border-white/10 h-11"
+                  placeholder="Doe"
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <label className="text-xs text-muted-foreground uppercase tracking-widest font-bold">Email Address</label>
+              <Input 
+                required
+                type="email"
+                value={newLead.email} 
+                onChange={e => setNewLead(prev => ({...prev, email: e.target.value}))}
+                className="bg-white/5 border-white/10 h-11"
+                placeholder="john@example.com"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-xs text-muted-foreground uppercase tracking-widest font-bold">Company</label>
+                <Input 
+                  value={newLead.company} 
+                  onChange={e => setNewLead(prev => ({...prev, company: e.target.value}))}
+                  className="bg-white/5 border-white/10 h-11"
+                  placeholder="Acme Inc."
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs text-muted-foreground uppercase tracking-widest font-bold">Title</label>
+                <Input 
+                  value={newLead.title} 
+                  onChange={e => setNewLead(prev => ({...prev, title: e.target.value}))}
+                  className="bg-white/5 border-white/10 h-11"
+                  placeholder="CEO"
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <label className="text-xs text-muted-foreground uppercase tracking-widest font-bold">Industry</label>
+              <Input 
+                value={newLead.industry} 
+                onChange={e => setNewLead(prev => ({...prev, industry: e.target.value}))}
+                className="bg-white/5 border-white/10 h-11"
+                placeholder="Software"
+              />
+            </div>
+            <DialogFooter className="pt-6">
+              <Button type="button" variant="ghost" onClick={() => setIsAddDialogOpen(false)}>Cancel</Button>
+              <Button type="submit" className="px-8 shadow-lg shadow-primary/20">Create Lead</Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
     </div>

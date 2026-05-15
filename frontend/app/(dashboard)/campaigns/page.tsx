@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import api from "@/lib/api";
 import { format, formatDistanceToNow } from "date-fns";
-import { Loader2, Play, Pause, BarChart3, Plus, Trash2, Clock3 } from "lucide-react";
+import { Loader2, Play, Pause, BarChart3, Plus, Trash2, Clock3, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface Campaign {
@@ -16,6 +16,7 @@ interface Campaign {
   description: string;
   status: string;
   created_at: string;
+  target_industry?: string | null;
   scheduled_for?: string | null;
   metrics: {
     sent: number;
@@ -25,10 +26,14 @@ interface Campaign {
   };
 }
 
+type SortOption = "newest" | "oldest";
+
 export default function CampaignsPage() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [loading, setLoading] = useState(true);
   const [isActionLoading, setIsActionLoading] = useState<number | null>(null);
+  const [sortBy, setSortBy] = useState<SortOption>("newest");
+  const [selectedIndustry, setSelectedIndustry] = useState("All Industries");
 
   const fetchCampaigns = async () => {
     try {
@@ -74,6 +79,37 @@ export default function CampaignsPage() {
       setIsActionLoading(null);
     }
   };
+
+  const handleSendNewLeads = async (id: number) => {
+    try {
+      setIsActionLoading(id);
+      await api.post(`/campaigns/${id}/send-new-leads`);
+      await fetchCampaigns();
+    } catch (error) {
+      console.error("Failed to trigger campaign for new leads:", error);
+    } finally {
+      setIsActionLoading(null);
+    }
+  };
+
+  const activeCampaigns = campaigns.filter((campaign) => campaign.status === "active");
+  const industrySet = new Set<string>(
+    activeCampaigns
+      .map((campaign) => campaign.target_industry || "All Industries")
+      .flatMap((industry) => industry.split(",").map((item) => item.trim()).filter(Boolean))
+  );
+  const industryOptions = ["All Industries", ...Array.from(industrySet).filter((value) => value !== "All Industries").sort()];
+  const filteredActiveCampaigns = activeCampaigns.filter((campaign) => {
+    if (selectedIndustry === "All Industries") return true;
+    const target = campaign.target_industry || "All Industries";
+    return target.toLowerCase().split(",").map((industry) => industry.trim()).some((industry) => industry.toLowerCase().includes(selectedIndustry.toLowerCase()));
+  });
+  const sortedActiveCampaigns = [...filteredActiveCampaigns].sort((a, b) => {
+    if (sortBy === "newest") {
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    }
+    return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+  });
 
   const CampaignCard = ({ campaign }: { campaign: Campaign }) => (
     <Card key={campaign.id} className="border-border/50 bg-card/30 backdrop-blur-sm hover:border-primary/50 transition-all duration-300 group">
@@ -126,6 +162,19 @@ export default function CampaignsPage() {
           </div>
         )}
 
+        {campaign.target_industry && (
+          <div className="flex flex-wrap gap-2">
+            <span className="text-xs text-muted-foreground uppercase tracking-widest font-semibold">Industries:</span>
+            <div className="flex flex-wrap gap-2">
+              {campaign.target_industry.split(",").map((industry) => (
+                <Badge key={industry.trim()} variant="secondary" className="bg-primary/15 text-primary border-primary/30">
+                  {industry.trim()}
+                </Badge>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div className="grid grid-cols-3 gap-4">
           <div className="text-center">
             <p className="text-xs text-muted-foreground uppercase mb-1">Sent</p>
@@ -154,11 +203,11 @@ export default function CampaignsPage() {
           </div>
         </div>
 
-        <div className="flex gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <button 
             onClick={() => handlePause(campaign.id, campaign.status)}
             disabled={isActionLoading === campaign.id}
-            className="flex-1 py-2 rounded-xl border border-border/50 bg-white/5 text-sm font-medium hover:bg-white/10 transition-colors flex items-center justify-center gap-2"
+            className="py-2 rounded-xl border border-border/50 bg-white/5 text-sm font-medium hover:bg-white/10 transition-colors flex items-center justify-center gap-2"
           >
             {isActionLoading === campaign.id ? (
               <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -168,9 +217,20 @@ export default function CampaignsPage() {
               <><Play className="w-3.5 h-3.5" /> Launch</>
             )}
           </button>
+          <button
+            onClick={() => handleSendNewLeads(campaign.id)}
+            disabled={isActionLoading === campaign.id}
+            className="py-2 rounded-xl border border-primary/20 bg-primary/10 text-primary text-sm font-medium hover:bg-primary/15 transition-colors flex items-center justify-center gap-2"
+          >
+            {isActionLoading === campaign.id ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <><RefreshCw className="w-3.5 h-3.5" /> Send New Leads</>
+            )}
+          </button>
           <button 
             onClick={() => window.location.href = "/analytics"}
-            className="flex-1 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
+            className="py-2 rounded-xl bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
           >
             <BarChart3 className="w-3.5 h-3.5" /> View Stats
           </button>
@@ -211,16 +271,45 @@ export default function CampaignsPage() {
         <TabsContent value="active" className="animate-in fade-in duration-300">
           {loading ? (
             <div className="flex justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
-          ) : campaigns.filter(c => c.status === "active").length === 0 ? (
+          ) : activeCampaigns.length === 0 ? (
             <div className="text-center py-20 bg-white/5 rounded-2xl border border-dashed border-border/50">
               <p className="text-muted-foreground">No active campaigns found. Launch one from the builder!</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {campaigns.filter(c => c.status === "active").map((campaign) => (
-                <CampaignCard key={campaign.id} campaign={campaign} />
-              ))}
-            </div>
+            <>
+              <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_240px] mb-6">
+                <label className="flex flex-col gap-2 text-sm text-muted-foreground">
+                  <span className="font-semibold text-foreground">Sort by</span>
+                  <select
+                    className="rounded-xl border border-border/50 bg-background px-3 py-2 text-sm text-foreground outline-none focus:ring-2 focus:ring-primary/40"
+                    value={sortBy}
+                    onChange={(event) => setSortBy(event.target.value as SortOption)}
+                  >
+                    <option value="newest">Newest created</option>
+                    <option value="oldest">Oldest created</option>
+                  </select>
+                </label>
+
+                <label className="flex flex-col gap-2 text-sm text-muted-foreground">
+                  <span className="font-semibold text-foreground">Industry</span>
+                  <select
+                    className="rounded-xl border border-border/50 bg-background px-3 py-2 text-sm text-foreground outline-none focus:ring-2 focus:ring-primary/40"
+                    value={selectedIndustry}
+                    onChange={(event) => setSelectedIndustry(event.target.value)}
+                  >
+                    {industryOptions.map((industry) => (
+                      <option key={industry} value={industry}>{industry}</option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {sortedActiveCampaigns.map((campaign) => (
+                  <CampaignCard key={campaign.id} campaign={campaign} />
+                ))}
+              </div>
+            </>
           )}
         </TabsContent>
 

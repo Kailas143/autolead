@@ -1,9 +1,9 @@
-const CACHE_NAME = "aurvyz-shell-v1";
-const APP_SHELL = ["/", "/dashboard", "/login", "/register", "/manifest.webmanifest", "/favicon.ico", "/logo.svg"];
+const CACHE_NAME = "aurvyz-static-v2";
+const STATIC_ASSETS = ["/manifest.webmanifest", "/favicon.ico", "/logo.svg"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL)).then(() => self.skipWaiting())
+    caches.open(CACHE_NAME).then((cache) => cache.addAll(STATIC_ASSETS)).then(() => self.skipWaiting())
   );
 });
 
@@ -20,19 +20,8 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  if (event.request.mode === "navigate") {
-    event.respondWith(
-      fetch(event.request)
-        .then((response) => {
-          const responseClone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, responseClone));
-          return response;
-        })
-        .catch(async () => {
-          const cachedResponse = await caches.match(event.request);
-          return cachedResponse || caches.match("/dashboard") || caches.match("/");
-        })
-    );
+  const url = new URL(event.request.url);
+  if (url.origin !== self.location.origin || event.request.mode === "navigate") {
     return;
   }
 

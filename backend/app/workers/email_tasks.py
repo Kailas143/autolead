@@ -14,24 +14,10 @@ def send_email_task(email_id: int):
     """
     db: Session = SessionLocal()
     try:
-        email = email_service.get_by_id(db, id=email_id)
-        if not email:
-            return
-
-        # Send email via Resend
-        params = {
-            "from": settings.EMAIL_FROM,
-            "to": [email.lead.email],
-            "subject": email.subject,
-            "html": email.body,
-        }
-
-        response = resend.Emails.send(params)
-
-        # Update email status
-        email_service.update_sent_status(db, email_id=email.id, sent_at=True)
-
-        return response
+        # Use the unified send_email method which includes Zoho SMTP fallback
+        import asyncio
+        result = asyncio.run(email_service.send_email(db, email_id))
+        return result
     finally:
         db.close()
 

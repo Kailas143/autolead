@@ -94,9 +94,22 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 8  # 8 days
 
     # Email
+    EMAIL_SERVICE_MODE: str = "production"  # Set to "test" to skip Resend API calls
     RESEND_API_KEY: str = ""
+    # Postmark (Uncommented as per request)
+    POSTMARK_API_KEY: str = ""
+    POSTMARK_SENDER: str = "hello@aurvyz.com"
     EMAIL_FROM: str = "hello@aurvyz.com"
     EMAIL_FROM_NAME: str = "Aurvyz"
+    # Mailtrap
+    MAILTRAP_API_TOKEN: str = ""
+
+    # Zoho SMTP
+    ZOHO_SMTP_HOST: str = "smtp.zoho.com"
+    ZOHO_SMTP_PORT: int = 465
+    ZOHO_SMTP_USER: str = ""
+    ZOHO_SMTP_PASSWORD: str = ""
+
     APP_TIMEZONE: str = "Asia/Kolkata"
 
     # AI

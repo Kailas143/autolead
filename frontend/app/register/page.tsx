@@ -33,8 +33,15 @@ export default function RegisterPage() {
       // After registration, redirect to login
       router.push("/login?registered=true");
     } catch (err: unknown) {
-      const error = err as { response?: { data?: { detail?: string } } };
-      setError(error.response?.data?.detail || "Failed to create account. Please try again.");
+      const error = err as {
+        code?: string;
+        response?: { data?: { detail?: string } };
+      };
+      if (error.code === "ECONNABORTED") {
+        setError("Registration timed out while contacting the server. Please try again.");
+      } else {
+        setError(error.response?.data?.detail || "Failed to create account. Please try again.");
+      }
     } finally {
       setLoading(false);
     }

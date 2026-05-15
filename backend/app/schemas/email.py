@@ -14,6 +14,11 @@ class EmailCreate(EmailBase):
     sequence_id: int
 
 
+class EmailSendRequest(BaseModel):
+    campaign_id: int
+    sequence_id: int
+
+
 class Email(EmailBase):
     id: int
     lead_id: int

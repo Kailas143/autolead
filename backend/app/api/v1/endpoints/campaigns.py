@@ -72,6 +72,7 @@ def read_campaigns(
             "description": campaign.description,
             "status": campaign.status,
             "scheduled_for": campaign.scheduled_for,
+            "target_industry": campaign.target_industry,
             "daily_send_limit": campaign.daily_send_limit,
             "send_window_start_hour": campaign.send_window_start_hour,
             "send_window_end_hour": campaign.send_window_end_hour,
@@ -115,6 +116,21 @@ def create_campaign(
     db.commit()
     db.refresh(campaign)
     return campaign
+
+@router.get("/{campaign_id}", response_model=schemas.Campaign)
+def read_campaign(
+    campaign_id: int,
+    db: Session = Depends(deps.get_db),
+    current_user: models.User = Depends(deps.get_current_active_user),
+) -> Any:
+    """
+    Retrieve a campaign and its sequences.
+    """
+    campaign = db.query(models.Campaign).filter(models.Campaign.id == campaign_id, models.Campaign.user_id == current_user.id).first()
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+    return campaign
+
 
 @router.post("/{campaign_id}/sequences", response_model=schemas.Sequence)
 def create_sequence(
@@ -171,6 +187,31 @@ def launch_campaign(
     launch_campaign_task.delay(campaign_id)
 
     return {"status": "success", "message": "Campaign launch triggered"}
+
+
+@router.post("/{campaign_id}/send-new-leads")
+def send_new_leads(
+    *,
+    db: Session = Depends(deps.get_db),
+    campaign_id: int,
+    current_user: models.User = Depends(deps.get_current_active_user),
+) -> Any:
+    """
+    Reuse an existing campaign and queue emails only for leads that have not
+    yet received an email in this campaign.
+    """
+    campaign = db.query(models.Campaign).filter(models.Campaign.id == campaign_id, models.Campaign.user_id == current_user.id).first()
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+
+    campaign.scheduled_for = None
+    if campaign.status != "active":
+        campaign.status = "active"
+    db.commit()
+
+    launch_campaign_task.delay(campaign_id)
+
+    return {"status": "success", "message": "Existing campaign triggered for new leads only"}
 
 @router.post("/{campaign_id}/pause")
 def pause_campaign(

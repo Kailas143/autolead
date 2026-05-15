@@ -23,3 +23,5 @@ slowapi==0.1.9
 aiofiles==23.2.1
 pytz==2025.1
 PyJWT
+postmark-python
+

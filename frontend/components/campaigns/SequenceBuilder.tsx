@@ -1,13 +1,14 @@
 "use client";
 
 import React, { useState } from "react";
-import { Plus, Trash2, Clock, Sparkles, ChevronDown } from "lucide-react";
+import { Plus, Trash2, Clock, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import api from "@/lib/api";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 
 interface SequenceStep {
   id: string;
@@ -15,6 +16,18 @@ interface SequenceStep {
   body: string;
   delay: number;
 }
+
+const INDUSTRY_OPTIONS = [
+  "SaaS",
+  "Healthcare",
+  "Health Care",
+  "Hospital",
+  "Care",
+  "Clinic",
+  "Education",
+  "Real Estate",
+  "Logistics",
+];
 
 export default function SequenceBuilder() {
   const router = useRouter();
@@ -52,7 +65,7 @@ Sreekailas v.s
       delay: 0 
     },
   ]);
-  const [industry, setIndustry] = useState<string>("All Industries");
+  const [selectedIndustries, setSelectedIndustries] = useState<string[]>([]);
   const [title, setTitle] = useState<string>("");
   const [scheduledFor, setScheduledFor] = useState<string>("");
   const [dailySendLimit, setDailySendLimit] = useState<number>(50);
@@ -81,15 +94,16 @@ Sreekailas v.s
 
   const handleLaunch = async () => {
     if (!title) {
-      alert("Please enter a campaign name");
+      toast.error("Please enter a campaign name");
       return;
     }
 
     try {
       setIsLaunching(true);
+      const industryValue = selectedIndustries.length > 0 ? selectedIndustries.join(", ") : null;
       const payload = {
         name: title,
-        target_industry: industry === "All Industries" ? null : industry,
+        target_industry: industryValue,
         scheduled_for: scheduledFor ? new Date(scheduledFor).toISOString() : null,
         daily_send_limit: Math.max(1, dailySendLimit || 1),
         send_window_start_hour: restrictSendingHours ? Math.max(0, Math.min(23, sendWindowStartHour || 0)) : 0,
@@ -107,12 +121,12 @@ Sreekailas v.s
 
       // Now launch it
       await api.post(`/campaigns/${response.data.id}/launch`);
-
-      alert(scheduledFor ? "Campaign scheduled successfully!" : "Campaign launched successfully!");
+  
+      toast.success(scheduledFor ? "Campaign scheduled successfully!" : "Campaign launched successfully!");
       router.push("/dashboard");
     } catch (error) {
       console.error("Failed to launch campaign:", error);
-      alert("Failed to launch campaign. Please check backend logs.");
+      toast.error("Failed to launch campaign. Please check backend logs.");
     } finally {
       setIsLaunching(false);
     }
@@ -121,18 +135,19 @@ Sreekailas v.s
   const handleGenerateAI = async (id: string) => {
     try {
       updateStep(id, "body", "Generating professional follow-up...");
+      const industryValue = selectedIndustries.length > 0 ? selectedIndustries.join(", ") : "consultancy";
       
       const leadData = {
         first_name: "{first_name}",
         company: "{company}",
-        industry: industry === "All Industries" ? "consultancy" : industry,
+        industry: industryValue,
       };
 
       const response = await api.post("/ai/generate-followup", { lead_data: leadData });
       updateStep(id, "body", response.data.content);
     } catch (error) {
       console.error("Failed to generate AI follow-up:", error);
-      alert("Failed to generate AI content. Using default.");
+      toast.error("Failed to generate AI content. Using default.");
       updateStep(id, "body", "Hi {first_name},\n\nJust wanted to follow up on my previous email...");
     }
   };
@@ -153,24 +168,21 @@ Sreekailas v.s
           </div>
           <div className="space-y-2">
             <label className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Industry Target</label>
-            <div className="relative group">
-              <select
-                value={industry}
-                onChange={(e) => setIndustry(e.target.value)}
-                className="w-full h-12 bg-black/20 border border-white/10 rounded-xl px-4 text-sm appearance-none focus:outline-none focus:border-primary/50 transition-all cursor-pointer"
-              >
-                <option>All Industries</option>
-                <option>SaaS</option>
-                <option>Healthcare</option>
-                <option>Clinic</option>
-                <option>Education</option>
-                <option>Real Estate</option>
-                <option>Logistics</option>
-              </select>
-              <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-muted-foreground">
-                <ChevronDown className="w-4 h-4" />
-              </div>
-            </div>
+            <select
+              multiple
+              value={selectedIndustries}
+              onChange={(e) => setSelectedIndustries(Array.from(e.target.selectedOptions, (option) => option.value))}
+              className="w-full min-h-[9rem] bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-primary/50 transition-all"
+            >
+              {INDUSTRY_OPTIONS.map((option) => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-muted-foreground">
+              Hold Ctrl or Cmd to select multiple industries. Leave empty to target all industries.
+            </p>
           </div>
         </div>
       </Card>
