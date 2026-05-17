@@ -51,10 +51,12 @@ interface Sequence {
 export default function LeadsPage() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedLeadIds, setSelectedLeadIds] = useState<number[]>([]);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState<number | null>(null);
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
   const [leadStats, setLeadStats] = useState<{ campaign_name: string; total_emails: number } | null>(null);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [sequences, setSequences] = useState<Sequence[]>([]);
@@ -76,12 +78,29 @@ export default function LeadsPage() {
     try {
       const response = await api.get("/leads/");
       setLeads(response.data);
+      setSelectedLeadIds((current) =>
+        current.filter((leadId) => response.data.some((lead: Lead) => lead.id === leadId))
+      );
     } catch (error) {
       console.error("Failed to fetch leads:", error);
     } finally {
       setLoading(false);
     }
   }, []);
+
+  const allLeadIds = leads.map((lead) => lead.id);
+  const hasSelectedLeads = selectedLeadIds.length > 0;
+  const allVisibleSelected = leads.length > 0 && selectedLeadIds.length === leads.length;
+
+  const toggleLeadSelection = (leadId: number) => {
+    setSelectedLeadIds((current) =>
+      current.includes(leadId) ? current.filter((id) => id !== leadId) : [...current, leadId]
+    );
+  };
+
+  const toggleSelectAllLeads = () => {
+    setSelectedLeadIds(allVisibleSelected ? [] : allLeadIds);
+  };
 
   useEffect(() => {
     Promise.resolve().then(() => fetchLeads());
@@ -200,12 +219,32 @@ export default function LeadsPage() {
       setIsDeleting(id);
       await api.delete(`/leads/${id}`);
       setLeads(leads.filter((l) => l.id !== id));
+      setSelectedLeadIds((current) => current.filter((leadId) => leadId !== id));
       toast.success("Lead deleted successfully.");
     } catch (error) {
       console.error("Failed to delete lead:", error);
       toast.error("Failed to delete lead");
     } finally {
       setIsDeleting(null);
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (!selectedLeadIds.length) return;
+    const count = selectedLeadIds.length;
+    if (!confirm(`Are you sure you want to delete ${count} selected lead${count > 1 ? "s" : ""}?`)) return;
+
+    try {
+      setIsBulkDeleting(true);
+      await Promise.all(selectedLeadIds.map((leadId) => api.delete(`/leads/${leadId}`)));
+      setLeads((current) => current.filter((lead) => !selectedLeadIds.includes(lead.id)));
+      setSelectedLeadIds([]);
+      toast.success(`${count} lead${count > 1 ? "s" : ""} deleted successfully.`);
+    } catch (error) {
+      console.error("Failed to delete selected leads:", error);
+      toast.error("Failed to delete selected leads.");
+    } finally {
+      setIsBulkDeleting(false);
     }
   };
 
@@ -263,12 +302,40 @@ export default function LeadsPage() {
 
         <Card className="lg:col-span-3 border-white/5 bg-white/5 backdrop-blur-sm overflow-hidden">
           <CardHeader className="border-b border-white/5 pb-4">
-            <CardTitle className="text-lg">Database Records</CardTitle>
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <CardTitle className="text-lg">Database Records</CardTitle>
+              <div className="flex items-center gap-3 self-start sm:self-auto">
+                {hasSelectedLeads ? (
+                  <span className="text-sm text-muted-foreground">
+                    {selectedLeadIds.length} selected
+                  </span>
+                ) : null}
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  className="gap-2"
+                  onClick={handleBulkDelete}
+                  disabled={!hasSelectedLeads || isBulkDeleting}
+                >
+                  {isBulkDeleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                  Delete Selected
+                </Button>
+              </div>
+            </div>
           </CardHeader>
           <CardContent className="p-0">
             <Table>
               <TableHeader className="bg-white/[0.01]">
                 <TableRow className="hover:bg-transparent border-white/5">
+                  <TableHead className="w-12 pl-6">
+                    <input
+                      type="checkbox"
+                      aria-label="Select all leads"
+                      checked={allVisibleSelected}
+                      onChange={toggleSelectAllLeads}
+                      className="h-4 w-4 rounded border-white/20 bg-transparent accent-primary"
+                    />
+                  </TableHead>
                   <TableHead className="text-muted-foreground pl-6">Name</TableHead>
                   <TableHead className="text-muted-foreground">Company</TableHead>
                   <TableHead className="text-muted-foreground">Status</TableHead>
@@ -278,7 +345,7 @@ export default function LeadsPage() {
               <TableBody>
                 {loading ? (
                    <TableRow>
-                    <TableCell colSpan={4} className="text-center py-20 text-muted-foreground">
+                    <TableCell colSpan={5} className="text-center py-20 text-muted-foreground">
                       <div className="flex flex-col items-center gap-2">
                         <Loader2 className="w-8 h-8 animate-spin text-primary" />
                         <span>Loading records...</span>
@@ -287,13 +354,26 @@ export default function LeadsPage() {
                   </TableRow>
                 ) : leads.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={4} className="text-center py-20 text-muted-foreground">
+                    <TableCell colSpan={5} className="text-center py-20 text-muted-foreground">
                       No leads imported yet. Upload a CSV file to get started.
                     </TableCell>
                   </TableRow>
                 ) : (
                   leads.map((lead) => (
-                    <TableRow key={lead.id} className="border-white/5 hover:bg-white/[0.02] transition-colors group">
+                    <TableRow
+                      key={lead.id}
+                      className="border-white/5 hover:bg-white/[0.02] transition-colors group"
+                      data-state={selectedLeadIds.includes(lead.id) ? "selected" : undefined}
+                    >
+                      <TableCell className="pl-6">
+                        <input
+                          type="checkbox"
+                          aria-label={`Select ${lead.first_name} ${lead.last_name}`}
+                          checked={selectedLeadIds.includes(lead.id)}
+                          onChange={() => toggleLeadSelection(lead.id)}
+                          className="h-4 w-4 rounded border-white/20 bg-transparent accent-primary"
+                        />
+                      </TableCell>
                       <TableCell className="pl-6">
                         <div className="font-medium text-white">{lead.first_name} {lead.last_name}</div>
                         <div className="text-xs text-muted-foreground">{lead.email}</div>
@@ -642,4 +722,3 @@ export default function LeadsPage() {
     </div>
   );
 }
-

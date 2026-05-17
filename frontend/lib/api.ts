@@ -18,14 +18,15 @@ const getApiUrl = () => {
 const api = axios.create({
   baseURL: getApiUrl(),
   timeout: 60000,
-  headers: {
-    "Content-Type": "application/json",
-  },
 });
 
 // Add a request interceptor to add the auth token to every request
 api.interceptors.request.use(
   (config) => {
+    // Don't set Content-Type for FormData - let the browser handle it
+    if (!(config.data instanceof FormData)) {
+      config.headers["Content-Type"] = "application/json";
+    }
     const token = localStorage.getItem("token");
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;

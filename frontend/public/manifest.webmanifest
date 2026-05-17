@@ -1,12 +1,12 @@
 {
-  "name": "Aurvyz Outreach",
+  "name": "Aurvyz | Intelligence, Engineered.",
   "short_name": "Aurvyz",
-  "description": "Mobile-friendly outreach tracking and campaign management.",
-  "start_url": "/dashboard",
+  "description": "Scalable AI systems and automation infrastructure engineering.",
+  "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "background_color": "#050505",
-  "theme_color": "#050505",
+  "background_color": "#000000",
+  "theme_color": "#000000",
   "orientation": "portrait",
   "icons": [
     {

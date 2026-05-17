@@ -1,5 +1,5 @@
-from typing import Any, List
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, BackgroundTasks
+from typing import Any, List, Optional
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from sqlalchemy.orm import Session
 from app import schemas, models
 from app.api import deps
@@ -44,24 +44,36 @@ def create_lead(
 
 @router.post("/upload")
 async def upload_leads(
-    background_tasks: BackgroundTasks,
-    file: UploadFile = File(...),
+    source: str = Form("apollo"),
+    sheet_url: Optional[str] = Form(None),
+    file: Optional[UploadFile] = File(None),
     current_user: models.User = Depends(deps.get_current_active_user),
 ) -> Any:
     """
-    Upload leads via CSV.
+    Upload leads via CSV or Google Sheet URL.
+    Source can be 'apollo' (CSV file) or 'google' (Sheet URL).
     """
-    if not file.filename.endswith(".csv"):
-        raise HTTPException(status_code=400, detail="Only CSV files are allowed")
-    
-    content = await file.read()
-    try:
-        # Decode to string for JSON serialization in Celery
-        content_str = content.decode("utf-8")
-        process_csv_import.delay(current_user.id, content_str)
-    except UnicodeDecodeError:
-        raise HTTPException(status_code=400, detail="Invalid file encoding. Please upload a UTF-8 CSV.")
-    
+    if source == "google":
+        if not sheet_url or not sheet_url.strip():
+            raise HTTPException(status_code=400, detail="Google Sheet URL is required for Google source")
+        try:
+            content_str = csv_service.fetch_google_sheet_csv(sheet_url.strip())
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=str(e))
+    elif source == "apollo":
+        if not file:
+            raise HTTPException(status_code=400, detail="CSV file is required for Apollo source")
+        if not file.filename or not file.filename.endswith(".csv"):
+            raise HTTPException(status_code=400, detail="Only CSV files are allowed for Apollo source")
+        try:
+            content = await file.read()
+            content_str = content.decode("utf-8-sig")
+        except UnicodeDecodeError:
+            raise HTTPException(status_code=400, detail="Invalid file encoding. Please upload a UTF-8 CSV.")
+    else:
+        raise HTTPException(status_code=400, detail=f"Invalid source: {source}. Use 'apollo' or 'google'.")
+
+    process_csv_import.delay(current_user.id, content_str, source)
     return {"message": "CSV upload started in background"}
 
 @router.get("/{lead_id}", response_model=schemas.Lead)

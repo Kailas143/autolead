@@ -99,40 +99,70 @@ def _queue_initial_campaign_emails(db, campaign: Campaign, now_utc: datetime) ->
     return len(pending_leads)
 
 @celery_app.task
-def process_csv_import(user_id: int, file_content: str):
+def process_csv_import(user_id: int, file_content: str, source: str = "apollo"):
     db = SessionLocal()
     try:
-        leads_data = csv_service.parse_apollo_csv(file_content)
+        leads_data = csv_service.parse_csv(file_content, source=source)
         print(f"DEBUG: Parsed {len(leads_data)} leads from CSV")
-        for data in leads_data:
+        
+        if not leads_data:
+            print(f"DEBUG: No leads parsed from CSV")
+            return
+            
+        added_count = 0
+        skipped_count = 0
+        
+        for idx, data in enumerate(leads_data):
             email = data.get("email")
             if not email:
-                print(f"DEBUG: Skipping lead missing email: {data.get('first_name', 'Unknown')}")
+                print(f"DEBUG: Skipping lead {idx} - missing email")
+                skipped_count += 1
                 continue
                 
-            # Check if lead exists
-            existing = db.query(Lead).filter(Lead.email == email).first()
-            if not existing:
-                lead = Lead(**data, user_id=user_id)
-                db.add(lead)
-                print(f"DEBUG: Added lead: {email}")
-            else:
-                # Update existing lead with missing data
-                updated = False
-                for key, value in data.items():
-                    if value and not getattr(existing, key, None):
-                        setattr(existing, key, value)
-                        updated = True
-                if updated:
-                    print(f"DEBUG: Updated existing lead with new info: {email}")
+            try:
+                # Check if lead exists
+                existing = db.query(Lead).filter(Lead.email == email).first()
+                if not existing:
+                    # Create new lead with only valid fields
+                    lead_kwargs = {
+                        "first_name": data.get("first_name", "Unknown"),
+                        "last_name": data.get("last_name", "Unknown"),
+                        "email": data.get("email"),
+                        "company": data.get("company"),
+                        "title": data.get("title"),
+                        "industry": data.get("industry"),
+                        "linkedin_url": data.get("linkedin_url"),
+                        "website": data.get("website"),
+                        "user_id": user_id,
+                    }
+                    lead = Lead(**lead_kwargs)
+                    db.add(lead)
+                    print(f"DEBUG: Added lead: {email}")
+                    added_count += 1
                 else:
-                    print(f"DEBUG: Lead already exists and is up to date: {email}")
+                    # Update existing lead with missing data
+                    updated = False
+                    for key in ["first_name", "last_name", "company", "title", "industry", "linkedin_url", "website"]:
+                        if data.get(key) and not getattr(existing, key, None):
+                            setattr(existing, key, data[key])
+                            updated = True
+                    if updated:
+                        print(f"DEBUG: Updated existing lead with new info: {email}")
+                    else:
+                        print(f"DEBUG: Lead already exists and is up to date: {email}")
+            except Exception as lead_error:
+                print(f"DEBUG: Error processing lead {idx} ({email}): {str(lead_error)}")
+                skipped_count += 1
+                continue
+                
         db.commit()
-        print(f"DEBUG: Successfully committed leads to database")
+        print(f"DEBUG: Successfully committed - Added: {added_count}, Skipped: {skipped_count}")
     except Exception as e:
         from app.services.audit_service import audit_service
-        audit_service.log_error(db, "CSV_IMPORT", f"Failed to process CSV for user {user_id}", e)
         print(f"DEBUG: Error processing CSV: {str(e)}")
+        import traceback
+        print(f"DEBUG: Traceback: {traceback.format_exc()}")
+        audit_service.log_error(db, "CSV_IMPORT", f"Failed to process CSV for user {user_id}", e)
         db.rollback()
     finally:
         db.close()
