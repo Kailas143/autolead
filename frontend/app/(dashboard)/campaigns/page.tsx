@@ -14,6 +14,8 @@ interface Campaign {
   id: number;
   name: string;
   description: string;
+  channel: "email" | "whatsapp";
+  evolution_instance_name?: string | null;
   status: string;
   created_at: string;
   target_industry?: string | null;
@@ -118,10 +120,20 @@ export default function CampaignsPage() {
     <Card key={campaign.id} className="border-border/50 bg-card/30 backdrop-blur-sm hover:border-primary/50 transition-all duration-300 group">
       <CardHeader className="flex flex-row items-center justify-between">
         <div>
-          <CardTitle className="text-xl font-bold text-foreground">{campaign.name}</CardTitle>
+          <div className="flex items-center gap-2">
+            <CardTitle className="text-xl font-bold text-foreground">{campaign.name}</CardTitle>
+            <Badge variant="secondary" className="capitalize bg-white/10 text-white border-white/10">
+              {campaign.channel}
+            </Badge>
+          </div>
           <p className="text-sm text-muted-foreground">
             Started {format(new Date(campaign.created_at), "MMM d, yyyy")}
           </p>
+          {campaign.channel === "whatsapp" && campaign.evolution_instance_name && (
+            <p className="text-xs text-muted-foreground mt-1">
+              Instance: {campaign.evolution_instance_name}
+            </p>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <Badge className={cn(

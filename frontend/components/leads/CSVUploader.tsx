@@ -14,6 +14,8 @@ interface CSVUploaderProps {
 export default function CSVUploader({ onUploadSuccess }: CSVUploaderProps) {
   const [file, setFile] = useState<File | null>(null);
   const [sheetUrl, setSheetUrl] = useState("");
+  const [validateWhatsApp, setValidateWhatsApp] = useState(false);
+  const [instanceName, setInstanceName] = useState("supermarket_campaign");
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [status, setStatus] = useState<"idle" | "success" | "error">("idle");
@@ -31,6 +33,7 @@ export default function CSVUploader({ onUploadSuccess }: CSVUploaderProps) {
   const handleUpload = async () => {
     if (source === "apollo" && !file) return;
     if (source === "google" && !sheetUrl.trim()) return;
+    if (validateWhatsApp && !instanceName.trim()) return;
 
     setUploading(true);
     setStatus("idle");
@@ -52,12 +55,16 @@ export default function CSVUploader({ onUploadSuccess }: CSVUploaderProps) {
     try {
       const formData = new FormData();
       formData.append("source", source);
+      formData.append("validate_whatsapp", String(validateWhatsApp));
+      if (validateWhatsApp) {
+        formData.append("instance_name", instanceName.trim());
+      }
       if (source === "apollo") {
         formData.append("file", file as File);
       } else {
         formData.append("sheet_url", sheetUrl.trim());
       }
-      
+
       await api.post("/leads/upload", formData, {
         onUploadProgress: (progressEvent) => {
           const percentCompleted = Math.round(
@@ -66,12 +73,12 @@ export default function CSVUploader({ onUploadSuccess }: CSVUploaderProps) {
           setProgress(percentCompleted);
         },
       });
-      
+
       clearInterval(interval);
       setProgress(100);
       setStatus("success");
       setErrorMessage("");
-      
+
       // Notify parent to refresh list if needed
       if (onUploadSuccess) {
         onUploadSuccess();
@@ -115,10 +122,10 @@ export default function CSVUploader({ onUploadSuccess }: CSVUploaderProps) {
     <div className="space-y-4">
       <div className="flex justify-center gap-6 mb-2">
         <label className="flex items-center gap-2 cursor-pointer">
-          <input 
-            type="radio" 
-            name="source" 
-            value="apollo" 
+          <input
+            type="radio"
+            name="source"
+            value="apollo"
             checked={source === "apollo"}
             onChange={() => {
               setSource("apollo");
@@ -132,10 +139,10 @@ export default function CSVUploader({ onUploadSuccess }: CSVUploaderProps) {
           <span className="text-sm font-medium">Apollo</span>
         </label>
         <label className="flex items-center gap-2 cursor-pointer">
-          <input 
-            type="radio" 
-            name="source" 
-            value="google" 
+          <input
+            type="radio"
+            name="source"
+            value="google"
             checked={source === "google"}
             onChange={() => {
               setSource("google");
@@ -148,6 +155,36 @@ export default function CSVUploader({ onUploadSuccess }: CSVUploaderProps) {
           />
           <span className="text-sm font-medium">Google</span>
         </label>
+      </div>
+
+      <div className="rounded-xl border border-white/10 bg-white/5 p-4 space-y-3">
+        <label className="flex items-center gap-3 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={validateWhatsApp}
+            onChange={(e) => setValidateWhatsApp(e.target.checked)}
+            className="h-4 w-4 rounded border-white/20 bg-transparent accent-primary"
+            disabled={uploading}
+          />
+          <span className="text-sm font-medium">Validate WhatsApp numbers during import</span>
+        </label>
+
+        {validateWhatsApp ? (
+          <div className="space-y-2">
+            <label htmlFor="csv-instance-name" className="text-sm font-medium text-foreground">
+              Evolution Instance Name
+            </label>
+            <input
+              id="csv-instance-name"
+              type="text"
+              value={instanceName}
+              onChange={(e) => setInstanceName(e.target.value)}
+              disabled={uploading}
+              placeholder="e.g. supermarket_campaign"
+              className="w-full rounded-xl border border-border px-4 py-3 text-sm focus:border-primary focus:ring-2 focus:ring-primary/20"
+            />
+          </div>
+        ) : null}
       </div>
 
       <div
@@ -175,7 +212,7 @@ export default function CSVUploader({ onUploadSuccess }: CSVUploaderProps) {
                 <p className="text-sm text-muted-foreground mb-6">
                   {(file.size / 1024).toFixed(2)} KB
                 </p>
-                
+
                 <div className="flex gap-3">
                   <Button variant="outline" onClick={() => setFile(null)} disabled={uploading}>
                     <X className="w-4 h-4 mr-2" /> Cancel

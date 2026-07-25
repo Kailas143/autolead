@@ -4,24 +4,25 @@ import React, { useEffect, useState, useCallback } from "react";
 import CSVUploader from "@/components/leads/CSVUploader";
 import { toast } from "sonner";
 import api from "@/lib/api";
+import axios from "axios";
 import { cn } from "@/lib/utils";
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Eye, Edit, Trash2, Loader2, Mail, Plus } from "lucide-react";
-import { 
-  Dialog, 
-  DialogContent, 
-  DialogHeader, 
-  DialogTitle, 
-  DialogFooter 
+import { Eye, Edit, Trash2, Loader2, Mail, Plus, MessageCircle, CheckCircle2 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -34,6 +35,8 @@ interface Lead {
   company: string;
   industry: string;
   status: string;
+  phone?: string;
+  whatsapp_status?: string;
 }
 
 interface Campaign {
@@ -48,6 +51,8 @@ interface Sequence {
   body: string;
 }
 
+type WhatsAppFilter = "all" | "valid" | "invalid" | "unknown" | "missing";
+
 export default function LeadsPage() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
@@ -57,6 +62,8 @@ export default function LeadsPage() {
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState<number | null>(null);
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
+  const [isBulkValidating, setIsBulkValidating] = useState(false);
+  const [validatingLeadId, setValidatingLeadId] = useState<number | null>(null);
   const [leadStats, setLeadStats] = useState<{ campaign_name: string; total_emails: number } | null>(null);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [sequences, setSequences] = useState<Sequence[]>([]);
@@ -65,10 +72,16 @@ export default function LeadsPage() {
   const [isSendDialogOpen, setIsSendDialogOpen] = useState(false);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isSending, setIsSending] = useState(false);
+  const [isWhatsAppDialogOpen, setIsWhatsAppDialogOpen] = useState(false);
+  const [whatsappMessage, setWhatsappMessage] = useState("");
+  const [whatsappInstanceName, setWhatsappInstanceName] = useState("supermarket_campaign");
+  const [isSendingWhatsApp, setIsSendingWhatsApp] = useState(false);
+  const [selectedWhatsAppFilter, setSelectedWhatsAppFilter] = useState<WhatsAppFilter>("all");
   const [newLead, setNewLead] = useState({
     first_name: "",
     last_name: "",
     email: "",
+    phone: "",
     company: "",
     industry: "",
     title: "",
@@ -88,9 +101,13 @@ export default function LeadsPage() {
     }
   }, []);
 
-  const allLeadIds = leads.map((lead) => lead.id);
+  const filteredLeads = leads.filter((lead) => {
+    if (selectedWhatsAppFilter === "all") return true;
+    return (lead.whatsapp_status || "unknown") === selectedWhatsAppFilter;
+  });
+  const filteredLeadIds = filteredLeads.map((lead) => lead.id);
   const hasSelectedLeads = selectedLeadIds.length > 0;
-  const allVisibleSelected = leads.length > 0 && selectedLeadIds.length === leads.length;
+  const allVisibleSelected = filteredLeads.length > 0 && filteredLeads.every((lead) => selectedLeadIds.includes(lead.id));
 
   const toggleLeadSelection = (leadId: number) => {
     setSelectedLeadIds((current) =>
@@ -99,7 +116,12 @@ export default function LeadsPage() {
   };
 
   const toggleSelectAllLeads = () => {
-    setSelectedLeadIds(allVisibleSelected ? [] : allLeadIds);
+    setSelectedLeadIds((current) => {
+      if (allVisibleSelected) {
+        return current.filter((id) => !filteredLeadIds.includes(id));
+      }
+      return Array.from(new Set([...current, ...filteredLeadIds]));
+    });
   };
 
   useEffect(() => {
@@ -191,6 +213,27 @@ export default function LeadsPage() {
     }
   };
 
+  const handleSendWhatsApp = async () => {
+    if (!selectedLead || !whatsappMessage || !whatsappInstanceName) return;
+
+    try {
+      setIsSendingWhatsApp(true);
+      await api.post(`/leads/${selectedLead.id}/whatsapp`, {
+        message: whatsappMessage,
+        instance_name: whatsappInstanceName,
+      });
+      toast.success("WhatsApp message has been sent successfully.");
+      setIsWhatsAppDialogOpen(false);
+      setWhatsappMessage("");
+    } catch (error: unknown) {
+      console.error("Failed to send WhatsApp message:", error);
+      const detail = axios.isAxiosError(error) ? error.response?.data?.detail : null;
+      toast.error(detail || "Failed to send WhatsApp message. Please try again.");
+    } finally {
+      setIsSendingWhatsApp(false);
+    }
+  };
+
   const handleCreateLead = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -201,6 +244,7 @@ export default function LeadsPage() {
         first_name: "",
         last_name: "",
         email: "",
+        phone: "",
         company: "",
         industry: "",
         title: "",
@@ -212,9 +256,41 @@ export default function LeadsPage() {
     }
   };
 
+  const handleValidateWhatsApp = async (lead: Lead) => {
+    if (!lead.phone) {
+      toast.error("This lead does not have a phone number.");
+      return;
+    }
+
+    try {
+      setValidatingLeadId(lead.id);
+      const response = await api.post(`/leads/${lead.id}/whatsapp/validate`, null, {
+        params: { instance_name: whatsappInstanceName },
+      });
+
+      setLeads((current) =>
+        current.map((item) =>
+          item.id === lead.id ? { ...item, whatsapp_status: response.data.whatsapp_status } : item
+        )
+      );
+
+      toast.success(
+        response.data.is_whatsapp
+          ? "Lead is available on WhatsApp."
+          : "Lead is not registered on WhatsApp."
+      );
+    } catch (error: unknown) {
+      console.error("Failed to validate WhatsApp lead:", error);
+      const detail = axios.isAxiosError(error) ? error.response?.data?.detail : null;
+      toast.error(detail || "Failed to validate WhatsApp lead.");
+    } finally {
+      setValidatingLeadId(null);
+    }
+  };
+
   const handleDelete = async (id: number) => {
     if (!confirm("Are you sure you want to delete this lead?")) return;
-    
+
     try {
       setIsDeleting(id);
       await api.delete(`/leads/${id}`);
@@ -263,6 +339,40 @@ export default function LeadsPage() {
     }
   };
 
+  const handleBulkValidateWhatsApp = async () => {
+    if (!selectedLeadIds.length) return;
+
+    try {
+      setIsBulkValidating(true);
+      const response = await api.post("/leads/whatsapp/validate-bulk", {
+        lead_ids: selectedLeadIds,
+        instance_name: whatsappInstanceName,
+      });
+
+      const resultByLeadId = new Map<number, string>(
+        response.data.items.map((item: { lead_id: number; whatsapp_status: string }) => [item.lead_id, item.whatsapp_status])
+      );
+
+      setLeads((current) =>
+        current.map((lead) =>
+          resultByLeadId.has(lead.id)
+            ? { ...lead, whatsapp_status: resultByLeadId.get(lead.id) }
+            : lead
+        )
+      );
+
+      toast.success(
+        `Validated ${response.data.validated} leads: ${response.data.valid_count} valid, ${response.data.invalid_count} invalid.`
+      );
+    } catch (error: unknown) {
+      console.error("Failed to bulk validate WhatsApp leads:", error);
+      const detail = axios.isAxiosError(error) ? error.response?.data?.detail : null;
+      toast.error(detail || "Failed to validate selected leads.");
+    } finally {
+      setIsBulkValidating(false);
+    }
+  };
+
   return (
     <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-700">
       <div className="flex justify-between items-center">
@@ -288,9 +398,9 @@ export default function LeadsPage() {
               }, 2000);
             }} />
             <div className="mt-6 pt-6 border-t border-white/5">
-              <Button 
-                onClick={() => setIsAddDialogOpen(true)} 
-                variant="outline" 
+              <Button
+                onClick={() => setIsAddDialogOpen(true)}
+                variant="outline"
                 className="w-full h-12 border-white/10 hover:bg-white/5 gap-2 group"
               >
                 <Plus className="w-4 h-4 text-primary group-hover:scale-125 transition-transform" />
@@ -304,12 +414,39 @@ export default function LeadsPage() {
           <CardHeader className="border-b border-white/5 pb-4">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <CardTitle className="text-lg">Database Records</CardTitle>
-              <div className="flex items-center gap-3 self-start sm:self-auto">
+              <div className="flex flex-col gap-3 self-start sm:flex-row sm:items-center sm:self-auto">
+                <Input
+                  value={whatsappInstanceName}
+                  onChange={(e) => setWhatsappInstanceName(e.target.value)}
+                  className="h-9 w-full sm:w-44 bg-white/5 border-white/10 text-white"
+                  placeholder="Instance name"
+                />
+                <select
+                  value={selectedWhatsAppFilter}
+                  onChange={(event) => setSelectedWhatsAppFilter(event.target.value as WhatsAppFilter)}
+                  className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none transition focus:border-white/30"
+                >
+                  <option value="all">All WhatsApp statuses</option>
+                  <option value="valid">WhatsApp valid</option>
+                  <option value="invalid">WhatsApp invalid</option>
+                  <option value="unknown">WhatsApp unknown</option>
+                  <option value="missing">WhatsApp missing</option>
+                </select>
                 {hasSelectedLeads ? (
                   <span className="text-sm text-muted-foreground">
                     {selectedLeadIds.length} selected
                   </span>
                 ) : null}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-2 border-white/10 hover:bg-white/5"
+                  onClick={handleBulkValidateWhatsApp}
+                  disabled={!hasSelectedLeads || isBulkValidating}
+                >
+                  {isBulkValidating ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                  Validate Selected
+                </Button>
                 <Button
                   variant="destructive"
                   size="sm"
@@ -339,13 +476,14 @@ export default function LeadsPage() {
                   <TableHead className="text-muted-foreground pl-6">Name</TableHead>
                   <TableHead className="text-muted-foreground">Company</TableHead>
                   <TableHead className="text-muted-foreground">Status</TableHead>
+                  <TableHead className="text-muted-foreground">WhatsApp</TableHead>
                   <TableHead className="text-muted-foreground text-right pr-6">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {loading ? (
-                   <TableRow>
-                    <TableCell colSpan={5} className="text-center py-20 text-muted-foreground">
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center py-20 text-muted-foreground">
                       <div className="flex flex-col items-center gap-2">
                         <Loader2 className="w-8 h-8 animate-spin text-primary" />
                         <span>Loading records...</span>
@@ -354,12 +492,18 @@ export default function LeadsPage() {
                   </TableRow>
                 ) : leads.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center py-20 text-muted-foreground">
+                    <TableCell colSpan={6} className="text-center py-20 text-muted-foreground">
                       No leads imported yet. Upload a CSV file to get started.
                     </TableCell>
                   </TableRow>
+                ) : filteredLeads.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center py-20 text-muted-foreground">
+                      No leads match the selected WhatsApp filter.
+                    </TableCell>
+                  </TableRow>
                 ) : (
-                  leads.map((lead) => (
+                  filteredLeads.map((lead) => (
                     <TableRow
                       key={lead.id}
                       className="border-white/5 hover:bg-white/[0.02] transition-colors group"
@@ -383,8 +527,8 @@ export default function LeadsPage() {
                         <div className="text-[10px] text-muted-foreground uppercase tracking-widest">{lead.industry}</div>
                       </TableCell>
                       <TableCell>
-                        <Badge 
-                          variant="secondary" 
+                        <Badge
+                          variant="secondary"
                           className={cn(
                             "capitalize rounded-lg px-2.5 py-0.5",
                             lead.status === "new" && "bg-blue-500/10 text-blue-500 border-blue-500/20",
@@ -396,11 +540,25 @@ export default function LeadsPage() {
                           {lead.status}
                         </Badge>
                       </TableCell>
+                      <TableCell>
+                        <Badge
+                          variant="secondary"
+                          className={cn(
+                            "capitalize rounded-lg px-2.5 py-0.5",
+                            lead.whatsapp_status === "valid" && "bg-emerald-500/10 text-emerald-500 border-emerald-500/20",
+                            lead.whatsapp_status === "invalid" && "bg-red-500/10 text-red-400 border-red-500/20",
+                            lead.whatsapp_status === "unknown" && "bg-amber-500/10 text-amber-400 border-amber-500/20",
+                            lead.whatsapp_status === "missing" && "bg-slate-500/10 text-slate-300 border-slate-500/20"
+                          )}
+                        >
+                          {lead.whatsapp_status || "unknown"}
+                        </Badge>
+                      </TableCell>
                       <TableCell className="text-right pr-6">
                         <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <Button 
-                            variant="ghost" 
-                            size="icon" 
+                          <Button
+                            variant="ghost"
+                            size="icon"
                             className="h-8 w-8 hover:bg-white/10 text-muted-foreground hover:text-white"
                             onClick={() => {
                               setSelectedLead(lead);
@@ -409,9 +567,30 @@ export default function LeadsPage() {
                           >
                             <Mail className="w-4 h-4" />
                           </Button>
-                          <Button 
-                            variant="ghost" 
-                            size="icon" 
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 hover:bg-white/10 text-muted-foreground hover:text-white"
+                            onClick={() => {
+                              setSelectedLead(lead);
+                              setIsWhatsAppDialogOpen(true);
+                            }}
+                          >
+                            <MessageCircle className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 hover:bg-white/10 text-muted-foreground hover:text-white"
+                            onClick={() => handleValidateWhatsApp(lead)}
+                            disabled={validatingLeadId === lead.id}
+                            title="Validate WhatsApp"
+                          >
+                            {validatingLeadId === lead.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
                             className="h-8 w-8 hover:bg-white/10 text-muted-foreground hover:text-white"
                             onClick={() => {
                               setSelectedLead(lead);
@@ -420,9 +599,9 @@ export default function LeadsPage() {
                           >
                             <Eye className="w-4 h-4" />
                           </Button>
-                          <Button 
-                            variant="ghost" 
-                            size="icon" 
+                          <Button
+                            variant="ghost"
+                            size="icon"
                             className="h-8 w-8 hover:bg-white/10 text-muted-foreground hover:text-white"
                             onClick={() => {
                               setSelectedLead(lead);
@@ -431,9 +610,9 @@ export default function LeadsPage() {
                           >
                             <Edit className="w-4 h-4" />
                           </Button>
-                          <Button 
-                            variant="ghost" 
-                            size="icon" 
+                          <Button
+                            variant="ghost"
+                            size="icon"
                             className="h-8 w-8 hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
                             onClick={() => handleDelete(lead.id)}
                             disabled={isDeleting === lead.id}
@@ -526,6 +705,59 @@ export default function LeadsPage() {
         </DialogContent>
       </Dialog>
 
+      {/* Send WhatsApp Dialog */}
+      <Dialog open={isWhatsAppDialogOpen} onOpenChange={setIsWhatsAppDialogOpen}>
+        <DialogContent className="bg-[#0a0a0a] border-white/10 text-white sm:max-w-[560px]">
+          <DialogHeader>
+            <DialogTitle>Send WhatsApp to {selectedLead?.first_name} {selectedLead?.last_name}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            {!selectedLead?.phone ? (
+              <div className="rounded-2xl border border-dashed border-red-500/30 bg-red-500/10 p-5 text-sm text-red-400">
+                This lead does not have a phone number saved. Please update their profile first.
+              </div>
+            ) : (
+              <>
+                <div className="space-y-2">
+                  <label className="text-xs text-muted-foreground uppercase tracking-widest font-bold">Instance Name</label>
+                  <Input
+                    required
+                    value={whatsappInstanceName}
+                    onChange={e => setWhatsappInstanceName(e.target.value)}
+                    className="bg-white/5 border-white/10 h-11 text-white"
+                    placeholder="e.g. supermarket_campaign"
+                  />
+                  <p className="text-[10px] text-muted-foreground">The Evolution API instance name connected to your WhatsApp number.</p>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs text-muted-foreground uppercase tracking-widest font-bold">Message</label>
+                  <textarea
+                    value={whatsappMessage}
+                    onChange={e => setWhatsappMessage(e.target.value)}
+                    className="w-full min-h-[120px] rounded-lg border border-white/10 bg-white/5 p-3 text-sm text-white outline-none transition focus:border-white/30 resize-none"
+                    placeholder="Type your WhatsApp message here..."
+                  />
+                </div>
+              </>
+            )}
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="ghost" onClick={() => setIsWhatsAppDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              className="px-8 shadow-lg shadow-primary/20"
+              disabled={isSendingWhatsApp || !whatsappMessage || !whatsappInstanceName || !selectedLead?.phone}
+              onClick={handleSendWhatsApp}
+            >
+              {isSendingWhatsApp ? <Loader2 className="w-4 h-4 animate-spin" /> : "Send Message"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Edit Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent className="bg-[#0a0a0a] border-white/10 text-white sm:max-w-[500px]">
@@ -536,42 +768,52 @@ export default function LeadsPage() {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <label className="text-xs text-muted-foreground uppercase tracking-widest font-bold">First Name</label>
-                <Input 
-                  value={selectedLead?.first_name || ""} 
-                  onChange={e => setSelectedLead(prev => prev ? {...prev, first_name: e.target.value} : null)}
+                <Input
+                  value={selectedLead?.first_name || ""}
+                  onChange={e => setSelectedLead(prev => prev ? { ...prev, first_name: e.target.value } : null)}
                   className="bg-white/5 border-white/10 h-11"
                 />
               </div>
               <div className="space-y-2">
                 <label className="text-xs text-muted-foreground uppercase tracking-widest font-bold">Last Name</label>
-                <Input 
-                  value={selectedLead?.last_name || ""} 
-                  onChange={e => setSelectedLead(prev => prev ? {...prev, last_name: e.target.value} : null)}
+                <Input
+                  value={selectedLead?.last_name || ""}
+                  onChange={e => setSelectedLead(prev => prev ? { ...prev, last_name: e.target.value } : null)}
+                  className="bg-white/5 border-white/10 h-11"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-xs text-muted-foreground uppercase tracking-widest font-bold">Email Address</label>
+                <Input
+                  value={selectedLead?.email || ""}
+                  onChange={e => setSelectedLead(prev => prev ? { ...prev, email: e.target.value } : null)}
+                  className="bg-white/5 border-white/10 h-11"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs text-muted-foreground uppercase tracking-widest font-bold">Phone Number</label>
+                <Input
+                  value={selectedLead?.phone || ""}
+                  onChange={e => setSelectedLead(prev => prev ? { ...prev, phone: e.target.value } : null)}
                   className="bg-white/5 border-white/10 h-11"
                 />
               </div>
             </div>
             <div className="space-y-2">
-              <label className="text-xs text-muted-foreground uppercase tracking-widest font-bold">Email Address</label>
-              <Input 
-                value={selectedLead?.email || ""} 
-                onChange={e => setSelectedLead(prev => prev ? {...prev, email: e.target.value} : null)}
-                className="bg-white/5 border-white/10 h-11"
-              />
-            </div>
-            <div className="space-y-2">
               <label className="text-xs text-muted-foreground uppercase tracking-widest font-bold">Company</label>
-              <Input 
-                value={selectedLead?.company || ""} 
-                onChange={e => setSelectedLead(prev => prev ? {...prev, company: e.target.value} : null)}
+              <Input
+                value={selectedLead?.company || ""}
+                onChange={e => setSelectedLead(prev => prev ? { ...prev, company: e.target.value } : null)}
                 className="bg-white/5 border-white/10 h-11"
               />
             </div>
             <div className="space-y-2">
               <label className="text-xs text-muted-foreground uppercase tracking-widest font-bold">Industry</label>
-              <Input 
-                value={selectedLead?.industry || ""} 
-                onChange={e => setSelectedLead(prev => prev ? {...prev, industry: e.target.value} : null)}
+              <Input
+                value={selectedLead?.industry || ""}
+                onChange={e => setSelectedLead(prev => prev ? { ...prev, industry: e.target.value } : null)}
                 className="bg-white/5 border-white/10 h-11"
               />
             </div>
@@ -626,7 +868,7 @@ export default function LeadsPage() {
                   <Mail className="w-4 h-4 text-primary" />
                   <span>
                     {leadStats ? (
-                      leadStats.total_emails > 0 
+                      leadStats.total_emails > 0
                         ? `${leadStats.total_emails} emails sent to this lead`
                         : "No emails sent yet"
                     ) : (
@@ -653,51 +895,63 @@ export default function LeadsPage() {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <label className="text-xs text-muted-foreground uppercase tracking-widest font-bold">First Name</label>
-                <Input 
+                <Input
                   required
-                  value={newLead.first_name} 
-                  onChange={e => setNewLead(prev => ({...prev, first_name: e.target.value}))}
+                  value={newLead.first_name}
+                  onChange={e => setNewLead(prev => ({ ...prev, first_name: e.target.value }))}
                   className="bg-white/5 border-white/10 h-11"
                   placeholder="John"
                 />
               </div>
               <div className="space-y-2">
                 <label className="text-xs text-muted-foreground uppercase tracking-widest font-bold">Last Name</label>
-                <Input 
+                <Input
                   required
-                  value={newLead.last_name} 
-                  onChange={e => setNewLead(prev => ({...prev, last_name: e.target.value}))}
+                  value={newLead.last_name}
+                  onChange={e => setNewLead(prev => ({ ...prev, last_name: e.target.value }))}
                   className="bg-white/5 border-white/10 h-11"
                   placeholder="Doe"
                 />
               </div>
             </div>
-            <div className="space-y-2">
-              <label className="text-xs text-muted-foreground uppercase tracking-widest font-bold">Email Address</label>
-              <Input 
-                required
-                type="email"
-                value={newLead.email} 
-                onChange={e => setNewLead(prev => ({...prev, email: e.target.value}))}
-                className="bg-white/5 border-white/10 h-11"
-                placeholder="john@example.com"
-              />
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-xs text-muted-foreground uppercase tracking-widest font-bold">Email Address</label>
+                <Input
+                  required
+                  type="email"
+                  value={newLead.email}
+                  onChange={e => setNewLead(prev => ({ ...prev, email: e.target.value }))}
+                  className="bg-white/5 border-white/10 h-11"
+                  placeholder="john@example.com"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs text-muted-foreground uppercase tracking-widest font-bold">Phone Number</label>
+                <Input
+                  type="text"
+                  value={newLead.phone}
+                  onChange={e => setNewLead(prev => ({ ...prev, phone: e.target.value }))}
+                  className="bg-white/5 border-white/10 h-11"
+                  placeholder="+1234567890"
+                />
+              </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <label className="text-xs text-muted-foreground uppercase tracking-widest font-bold">Company</label>
-                <Input 
-                  value={newLead.company} 
-                  onChange={e => setNewLead(prev => ({...prev, company: e.target.value}))}
+                <Input
+                  value={newLead.company}
+                  onChange={e => setNewLead(prev => ({ ...prev, company: e.target.value }))}
                   className="bg-white/5 border-white/10 h-11"
                   placeholder="Acme Inc."
                 />
               </div>
               <div className="space-y-2">
                 <label className="text-xs text-muted-foreground uppercase tracking-widest font-bold">Title</label>
-                <Input 
-                  value={newLead.title} 
-                  onChange={e => setNewLead(prev => ({...prev, title: e.target.value}))}
+                <Input
+                  value={newLead.title}
+                  onChange={e => setNewLead(prev => ({ ...prev, title: e.target.value }))}
                   className="bg-white/5 border-white/10 h-11"
                   placeholder="CEO"
                 />
@@ -705,9 +959,9 @@ export default function LeadsPage() {
             </div>
             <div className="space-y-2">
               <label className="text-xs text-muted-foreground uppercase tracking-widest font-bold">Industry</label>
-              <Input 
-                value={newLead.industry} 
-                onChange={e => setNewLead(prev => ({...prev, industry: e.target.value}))}
+              <Input
+                value={newLead.industry}
+                onChange={e => setNewLead(prev => ({ ...prev, industry: e.target.value }))}
                 className="bg-white/5 border-white/10 h-11"
                 placeholder="Software"
               />

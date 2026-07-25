@@ -14,7 +14,7 @@ Production-ready AI-powered outreach automation platform.
 ## 🧠 Tech Stack
 
 - **Frontend**: Next.js 15 (App Router), TypeScript, Tailwind CSS, shadcn/ui.
-- **Backend**: FastAPI, SQLAlchemy, Pydantic, Celery, Redis, PostgreSQL.
+- **Backend**: FastAPI, SQLAlchemy, Pydantic, Redis, PostgreSQL.
 - **AI**: Google Gemini API.
 - **Email**: Resend API.
 - **Infrastructure**: Docker & Docker Compose.
@@ -33,8 +33,6 @@ Production-ready AI-powered outreach automation platform.
    ```env
    DATABASE_URL=postgresql://postgres:password@db:5432/aurvyz
    REDIS_URL=redis://redis:6379/0
-   CELERY_BROKER_URL=redis://redis:6379/0
-   CELERY_RESULT_BACKEND=redis://redis:6379/0
    
    # API Keys
    GEMINI_API_KEY=your_gemini_api_key
@@ -43,6 +41,13 @@ Production-ready AI-powered outreach automation platform.
    # Security
    SECRET_KEY=your_super_secret_key
    ```
+
+   > Note: If you change the database schema, run Alembic migrations from the `backend` folder:
+   > `cd backend && alembic upgrade head`
+   >
+   > For an existing database that is already in sync with the current models, you can stamp the current head instead of reapplying migrations:
+   > `cd backend && alembic stamp head`
+
 
 3. **Run with Docker Compose**:
    ```bash
@@ -65,18 +70,10 @@ pip install -r requirements-dev.txt
 ```
 Run the **FastAPI Server**:
 ```bash
-uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+uvicorn app.main:app --host [IP_ADDRESS] --port 8000 --reload
 ```
 
-Run the **Celery Worker** (in a separate terminal):
-```bash
-celery -A app.celery_app.celery_app worker --loglevel=info
-```
 
-Run **Celery Beat** as well if you want periodic follow-up checks locally:
-```bash
-celery -A app.celery_app.celery_app beat --loglevel=info
-```
 
 #### **2. Frontend**
 Navigate to the `frontend` directory and install dependencies:
@@ -105,55 +102,29 @@ npm run dev
 
 ## 🚢 Deployment
 
-### Google Artifact Registry + Cloud Run
-This repository now includes a production deployment path for:
+### AWS EC2 / VPS Deployment
+This project is designed to be easily deployed on a standard AWS EC2 instance or any other VPS using Docker Compose.
 
-GitHub/Gitea -> Jenkins or GitHub Actions -> Docker Build -> Google Artifact Registry -> Cloud Run
+1. **Clone the repository** on your server.
+2. **Set up `.env` files**: Ensure your root `.env` is configured properly for production.
+3. **Start the services**:
+   ```bash
+   docker-compose -f docker-compose.yml up -d --build
+   ```
+   *Note: This will spin up the database, redis, backend, frontend, and evolution-api.*
 
-- `frontend/Dockerfile.prod` builds the Next.js app for production and starts it with Node.
-- `backend/cloudrun.env.yaml.example` shows the backend env vars expected by Cloud Run.
-- `frontend/cloudrun.env.yaml.example` shows an optional frontend env file shape.
-- `Jenkinsfile` can build images, push them to Google Artifact Registry, and deploy backend and frontend services to Cloud Run.
+#### Background Tasks & Cron Job
+We use FastAPI's native `BackgroundTasks` instead of Celery to conserve memory and resources. To trigger periodic follow-ups and scheduled campaigns, set up an OS-level cron job:
 
-#### Jenkins credentials and variables
-Configure these in Jenkins before enabling deployment:
-
-- `GCP_SA_CREDENTIALS_ID`: Jenkins secret file credential id containing a Google Cloud service account JSON key.
-- `GCP_PROJECT_ID`: Your Google Cloud project id.
-- `BACKEND_ENV_VARS_FILE_CREDENTIALS_ID`: Jenkins secret file credential id containing the backend Cloud Run env vars YAML.
-- `FRONTEND_API_URL`: Public backend API URL used at frontend image build time, for example `https://backend-xyz.a.run.app/api/v1`.
-
-Optional Jenkins environment variables:
-
-- `GAR_REGION`: Defaults to `asia-south1`.
-- `GAR_REPOSITORY`: Defaults to `autolead`.
-- `CLOUD_RUN_REGION`: Defaults to `asia-south1`.
-- `BACKEND_SERVICE_NAME`: Defaults to `autolead-backend`.
-- `FRONTEND_SERVICE_NAME`: Defaults to `autolead-frontend`.
-- `DEPLOY_BRANCH`: Defaults to `main`.
-
-#### Google Cloud preparation
-1. Create an Artifact Registry Docker repository.
-2. Enable the Cloud Run and Artifact Registry APIs.
-3. Create a service account with Artifact Registry write access and Cloud Run admin access.
-4. Store that service account JSON in Jenkins as `GCP_SA_CREDENTIALS_ID`.
-5. Create a Jenkins secret file from [backend/cloudrun.env.yaml.example](/home/dell/autolead/backend/cloudrun.env.yaml.example) filled with real values.
-
-#### Deployment flow
-1. Jenkins builds the backend image from `backend/Dockerfile`.
-2. Jenkins builds the frontend image from `frontend/Dockerfile.prod`, injecting `FRONTEND_API_URL` at build time.
-3. Jenkins authenticates to Google Cloud and pushes both images to Artifact Registry with `${BUILD_NUMBER}` and `latest` tags.
-4. Jenkins deploys the backend image to Cloud Run using the backend env vars file.
-5. Jenkins deploys the frontend image to Cloud Run.
-
-#### Production notes
-- `NEXT_PUBLIC_API_URL` is compiled into the frontend bundle at build time, so set `FRONTEND_API_URL` correctly before the frontend image is built.
-- **Worker**: The backend image is deployed as a second service (`autolead-worker`) with Always-on CPU to process Celery tasks.
-- **Background Tasks**: Instead of Celery Beat, use **Cloud Scheduler** to trigger periodic tasks:
-  1. Create a Cloud Scheduler job (Cron: `0 * * * *`).
-  2. Target: `POST` to `https://your-backend-url/api/v1/campaigns/trigger-follow-ups`.
-  3. Header: `X-Cron-Secret: <your-cron-secret>`.
-- The `CRON_SECRET` must be set in your backend environment variables to match the Cloud Scheduler header.
+1. SSH into your AWS instance and edit your crontab:
+   ```bash
+   crontab -e
+   ```
+2. Add a cron expression to hit the trigger endpoint every 5 minutes:
+   ```cron
+   */5 * * * * curl -X POST http://localhost:8000/api/v1/campaigns/trigger-follow-ups -H "x-cron-secret: your_cron_secret" -H "Content-Length: 0" >/dev/null 2>&1
+   ```
+   *Make sure to replace `your_cron_secret` with the value of `CRON_SECRET` from your `.env` file.*
 
 ---
 

@@ -5,15 +5,46 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: password
       POSTGRES_DB: aurvyz
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d aurvyz"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "5433:5432"
+    expose:
+      - "5432"
 
   redis:
     image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
     ports:
-      - "6380:6379"
+      - "6381:6379"
+
+  evolution-api:
+    image: evoapicloud/evolution-api:latest
+    restart: always
+    environment:
+      - SERVER_PORT=8080
+      - AUTHENTICATION_API_KEY=${EVOLUTION_API_KEY:-supersecretkey}
+      - DATABASE_PROVIDER=postgresql
+      - DATABASE_CONNECTION_URI=postgresql://postgres:password@db:5432/aurvyz
+      - DATABASE_CONNECTION_CLIENT_NAME=evolution
+      - CACHE_REDIS_ENABLED=true
+      - CACHE_REDIS_URI=redis://redis:6379/1
+    ports:
+      - "8081:8080"
+    volumes:
+      - evolution_instances:/evolution/instances
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
 
   backend:
     build: ./backend
@@ -23,8 +54,6 @@ services:
     environment:
       - DATABASE_URL=postgresql://postgres:password@db:5432/aurvyz
       - REDIS_URL=redis://redis:6379/0
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/0
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - RESEND_API_KEY=${RESEND_API_KEY}
       - POSTMARK_API_KEY=${POSTMARK_API_KEY}
@@ -37,54 +66,12 @@ services:
     ports:
       - "8000:8000"
     depends_on:
-      - db
-      - redis
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
 
-  worker:
-    build: ./backend
-    command: celery -A app.celery_app.celery_app worker --loglevel=info
-    volumes:
-      - ./backend:/app
-    environment:
-      - DATABASE_URL=postgresql://postgres:password@db:5432/aurvyz
-      - REDIS_URL=redis://redis:6379/0
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/0
-      - GEMINI_API_KEY=${GEMINI_API_KEY}
-      - RESEND_API_KEY=${RESEND_API_KEY}
-      - POSTMARK_API_KEY=${POSTMARK_API_KEY}
-      - POSTMARK_SENDER=${POSTMARK_SENDER}
-      - MAILTRAP_API_TOKEN=${MAILTRAP_API_TOKEN}
-      - ZOHO_SMTP_HOST=${ZOHO_SMTP_HOST}
-      - ZOHO_SMTP_PORT=${ZOHO_SMTP_PORT}
-      - ZOHO_SMTP_USER=${ZOHO_SMTP_USER}
-      - ZOHO_SMTP_PASSWORD=${ZOHO_SMTP_PASSWORD}
-    depends_on:
-      - db
-      - redis
 
-  beat:
-    build: ./backend
-    command: celery -A app.celery_app.celery_app beat --loglevel=info
-    volumes:
-      - ./backend:/app
-    environment:
-      - DATABASE_URL=postgresql://postgres:password@db:5432/aurvyz
-      - REDIS_URL=redis://redis:6379/0
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/0
-      - GEMINI_API_KEY=${GEMINI_API_KEY}
-      - RESEND_API_KEY=${RESEND_API_KEY}
-      - POSTMARK_API_KEY=${POSTMARK_API_KEY}
-      - POSTMARK_SENDER=${POSTMARK_SENDER}
-      - MAILTRAP_API_TOKEN=${MAILTRAP_API_TOKEN}
-      - ZOHO_SMTP_HOST=${ZOHO_SMTP_HOST}
-      - ZOHO_SMTP_PORT=${ZOHO_SMTP_PORT}
-      - ZOHO_SMTP_USER=${ZOHO_SMTP_USER}
-      - ZOHO_SMTP_PASSWORD=${ZOHO_SMTP_PASSWORD}
-    depends_on:
-      - db
-      - redis
 
   frontend:
     build: ./frontend
@@ -101,3 +88,4 @@ services:
 
 volumes:
   postgres_data:
+  evolution_instances:

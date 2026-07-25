@@ -61,7 +61,7 @@ const COLORS = ["#10b981", "#ef4444", "#3b82f6", "#8b5cf6", "#f59e0b"];
 interface AnalyticsData {
   summary: {
     total_leads: number;
-    total_emails_sent: number;
+    total_messages_sent: number;
     total_opens: number;
     open_rate: string;
     total_replies: number;
@@ -116,7 +116,7 @@ export default function AnalyticsPage() {
 
   const summary = data?.summary || {
     total_leads: 0,
-    total_emails_sent: 0,
+    total_messages_sent: 0,
     total_opens: 0,
     total_replies: 0,
     open_rate: "0%",
@@ -124,7 +124,7 @@ export default function AnalyticsPage() {
   };
 
   const metrics = [
-    { name: "Total Sent", value: summary.total_emails_sent, trend: "Outreach Volume", icon: Mail },
+    { name: "Total Sent", value: summary.total_messages_sent, trend: "Outreach Volume", icon: Mail },
     { name: "Total Opens", value: summary.total_opens, trend: summary.open_rate, icon: MousePointer2 },
     { name: "Total Replies", value: summary.total_replies, trend: summary.reply_rate, icon: MessageSquare },
     { name: "Lead Score", value: summary.total_leads, trend: "Total Leads", icon: TrendingUp },

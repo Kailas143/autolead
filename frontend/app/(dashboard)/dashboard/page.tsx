@@ -21,7 +21,7 @@ interface Reply {
 export default function DashboardPage() {
   const [stats, setStats] = useState({
     total_leads: 0,
-    total_emails_sent: 0,
+    total_messages_sent: 0,
     open_rate: "0%",
     reply_rate: "0%"
   });
@@ -52,7 +52,7 @@ export default function DashboardPage() {
 
   const statItems = [
     { name: "Total Leads", value: stats.total_leads, icon: Users, color: "text-blue-500", bg: "bg-blue-500/10" },
-    { name: "Emails Sent", value: stats.total_emails_sent, icon: Mail, color: "text-purple-500", bg: "bg-purple-500/10" },
+    { name: "Messages Sent", value: stats.total_messages_sent, icon: Mail, color: "text-purple-500", bg: "bg-purple-500/10" },
     { name: "Open Rate", value: stats.open_rate, icon: MousePointer2, color: "text-emerald-500", bg: "bg-emerald-500/10" },
     { name: "Reply Rate", value: stats.reply_rate, icon: MessageSquare, color: "text-orange-500", bg: "bg-orange-500/10" },
   ];
