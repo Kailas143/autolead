@@ -4,9 +4,9 @@ services:
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: password
-      POSTGRES_DB: aurvyz
+      POSTGRES_DB: autolead_db
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d aurvyz"]
+      test: [ "CMD-SHELL", "pg_isready -U postgres -d autolead_db" ]
       interval: 5s
       timeout: 5s
       retries: 12
@@ -18,7 +18,7 @@ services:
   redis:
     image: redis:7-alpine
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: [ "CMD", "redis-cli", "ping" ]
       interval: 5s
       timeout: 3s
       retries: 12
@@ -32,7 +32,7 @@ services:
       - SERVER_PORT=8080
       - AUTHENTICATION_API_KEY=${EVOLUTION_API_KEY:-supersecretkey}
       - DATABASE_PROVIDER=postgresql
-      - DATABASE_CONNECTION_URI=postgresql://postgres:password@db:5432/aurvyz
+      - DATABASE_CONNECTION_URI=postgresql://postgres:password@db:5432/autolead_db
       - DATABASE_CONNECTION_CLIENT_NAME=evolution
       - CACHE_REDIS_ENABLED=true
       - CACHE_REDIS_URI=redis://redis:6379/1
@@ -52,7 +52,7 @@ services:
     volumes:
       - ./backend:/app
     environment:
-      - DATABASE_URL=postgresql://postgres:password@db:5432/aurvyz
+      - DATABASE_URL=postgresql://postgres:password@db:5432/autolead_db
       - REDIS_URL=redis://redis:6379/0
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - RESEND_API_KEY=${RESEND_API_KEY}
@@ -70,8 +70,6 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-
-
 
   frontend:
     build: ./frontend
