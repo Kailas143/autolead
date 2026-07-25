@@ -71,23 +71,6 @@ class Settings(BaseSettings):
             return v
         return f"redis://{info.data.get('REDIS_HOST')}:{info.data.get('REDIS_PORT')}/0"
 
-    # Celery
-    CELERY_BROKER_URL: Optional[str] = None
-    CELERY_RESULT_BACKEND: Optional[str] = None
-
-    @field_validator("CELERY_BROKER_URL", mode="before")
-    @classmethod
-    def assemble_celery_broker_url(cls, v: Optional[str], info: ValidationInfo) -> str:
-        if isinstance(v, str) and v:
-            return v
-        return info.data.get("REDIS_URL", "")
-
-    @field_validator("CELERY_RESULT_BACKEND", mode="before")
-    @classmethod
-    def assemble_celery_result_backend(cls, v: Optional[str], info: ValidationInfo) -> str:
-        if isinstance(v, str) and v:
-            return v
-        return info.data.get("REDIS_URL", "")
 
     # Security
     SECRET_KEY: str = "your-secret-key-here"
@@ -111,6 +94,10 @@ class Settings(BaseSettings):
     ZOHO_SMTP_PASSWORD: str = ""
 
     APP_TIMEZONE: str = "Asia/Kolkata"
+
+    # WhatsApp Evolution API
+    EVOLUTION_API_URL: str = "http://evolution-api:8080"
+    EVOLUTION_API_KEY: str = "supersecretkey"
 
     # AI
     GEMINI_API_KEY: str = ""

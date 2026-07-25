@@ -9,6 +9,13 @@ class SequenceBase(BaseModel):
     subject: str
     body: str
     delay_days: int = 0
+    delay_minutes: int = 0
+    mediatype: Optional[str] = None
+    mimetype: Optional[str] = None
+    media: Optional[str] = None
+    caption: Optional[str] = None
+    poll_question: Optional[str] = None
+    poll_options: Optional[List[str]] = None
 
 
 class SequenceCreate(SequenceBase):
@@ -23,9 +30,16 @@ class Sequence(SequenceBase):
         from_attributes = True
 
 
+class CampaignSendRequest(BaseModel):
+    sequence_id: int
+    instance_name: Optional[str] = None
+
+
 class CampaignBase(BaseModel):
     name: str
     description: Optional[str] = None
+    channel: Optional[str] = "email"
+    evolution_instance_name: Optional[str] = None
     target_industry: Optional[str] = None
     scheduled_for: Optional[datetime] = None
     daily_send_limit: int = 50

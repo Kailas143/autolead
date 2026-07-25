@@ -7,34 +7,70 @@ class AuditService:
     def log_error(self, db: Session, category: str, message: str, error: Optional[Exception] = None):
         """
         Record a system error with optional stack trace.
+        Handles PendingRollbackError by rolling back first.
         """
-        details = {}
-        if error:
-            details["error_type"] = type(error).__name__
-            details["error_message"] = str(error)
-            details["stack_trace"] = traceback.format_exc()
+        try:
+            details = {}
+            if error:
+                details["error_type"] = type(error).__name__
+                details["error_message"] = str(error)
+                details["stack_trace"] = traceback.format_exc()
 
-        log = SystemLog(
-            level="ERROR",
-            category=category,
-            message=message,
-            details=details
-        )
-        db.add(log)
-        db.commit()
+            log = SystemLog(
+                level="ERROR",
+                category=category,
+                message=message,
+                details=details
+            )
+            db.add(log)
+            db.commit()
+        except Exception as e:
+            # If the session is in a pending rollback state, rollback first
+            try:
+                db.rollback()
+            except Exception:
+                pass
+            # Try again with a fresh session state
+            try:
+                db.add(log)
+                db.commit()
+            except Exception:
+                # If it still fails, at least try to rollback to avoid leaving the session in a bad state
+                try:
+                    db.rollback()
+                except Exception:
+                    pass
 
     def log_info(self, db: Session, category: str, message: str, details: Optional[Dict[str, Any]] = None):
         """
         Record a system event.
+        Handles PendingRollbackError by rolling back first.
         """
-        log = SystemLog(
-            level="INFO",
-            category=category,
-            message=message,
-            details=details
-        )
-        db.add(log)
-        db.commit()
+        try:
+            log = SystemLog(
+                level="INFO",
+                category=category,
+                message=message,
+                details=details
+            )
+            db.add(log)
+            db.commit()
+        except Exception as e:
+            # If the session is in a pending rollback state, rollback first
+            try:
+                db.rollback()
+            except Exception:
+                pass
+            # Try again with a fresh session state
+            try:
+                db.add(log)
+                db.commit()
+            except Exception:
+                # If it still fails, at least try to rollback to avoid leaving the session in a bad state
+                try:
+                    db.rollback()
+                except Exception:
+                    pass
 
     def track_ai_usage(
         self, 

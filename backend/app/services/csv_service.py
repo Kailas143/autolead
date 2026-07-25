@@ -13,7 +13,7 @@ class CSVService:
     ]
     
     OPTIONAL_COLUMNS = [
-        "company", "title", "linkedin_url", "website", "industry"
+        "company", "title", "linkedin_url", "website", "industry", "phone"
     ]
 
     def _normalize_header(self, header: str) -> str:
@@ -124,13 +124,11 @@ class CSVService:
         else:
             content_str = file_content.lstrip('\ufeff')
             
-        # Detect delimiter and quotechar
         try:
             dialect = csv.Sniffer().sniff(content_str[:2000])
             stream = io.StringIO(content_str)
             reader = csv.DictReader(stream, dialect=dialect)
         except Exception:
-            # Fallback to default if sniffing fails
             stream = io.StringIO(content_str)
             reader = csv.DictReader(stream)
         
@@ -141,65 +139,28 @@ class CSVService:
         print(f"DEBUG: CSV Headers detected: {reader.fieldnames}")
         
         headers = self._build_headers(reader.fieldnames)
-        
-        if source == "google":
-            print(f"DEBUG: Using Google format parsing")
-            row_count = 0
-            for row in reader:
-                row_count += 1
-                lead = {}
-                name = self._get_field(row, headers, ["name", "full_name", "company", "company_name"])
-                company = self._get_field(row, headers, ["company", "company_name", "account_name"])
-                email = self._get_field(row, headers, ["email_address", "email", "work_email"])
-                industry = self._get_field(row, headers, ["industry"])
-                if not industry:
-                    industry = self._get_field(row, headers, ["type", "sector"])
-                title = self._get_field(row, headers, ["title", "job_title", "role"])
+        print(f"DEBUG: Normalized Headers Map: {headers}")
 
-                if not company and name:
-                    company = name
-                if not name and company:
-                    name = company
-                if not name:
-                    name = "Unknown"
-
-                parts = name.split()
-                lead["first_name"] = parts[0] if parts else "Unknown"
-                lead["last_name"] = " ".join(parts[1:]) if len(parts) > 1 else "Unknown"
-                lead["company"] = company or name or "Unknown"
-                lead["email"] = email
-                lead["industry"] = industry
-                if title:
-                    lead["title"] = title
-
-                if lead.get("email"):
-                    leads.append(lead)
-                    print(f"DEBUG: Row {row_count} parsed successfully - {lead['first_name']} {lead['last_name']} ({lead['email']})")
-                else:
-                    print(f"DEBUG: Row {row_count} skipped - no email found. Name: {name}, Company: {company}")
-            
-            print(f"DEBUG: Google format: Parsed {len(leads)} leads from {row_count} rows")
-            return leads
-
-        # Apollo format parsing
-        # Flexible mapping for common variations
         mapping = {
             "first_name": ["first_name", "first", "name"],
             "last_name": ["last_name", "last"],
             "email": ["email", "email_address", "work_email"],
             "company": ["company", "company_name", "organization", "account_name"],
+            "phone": ["phone", "phone_number", "mobile", "mobile_number", "whatsapp", "whatsapp_number"],
             "title": ["title", "job_title", "role"],
-            "industry": ["industry", "sector"],
+            "industry": ["industry", "sector", "type"],
             "linkedin_url": ["linkedin_url", "person_linkedin_url", "linkedin"],
-            "website": ["website", "company_website", "domain"]
+            "website": ["website", "company_website", "domain"],
+            "store_name": ["store_name", "store"],
+            "city_area": ["city_area", "city/area", "city", "area"],
+            "address": ["address", "location"],
+            "notes": ["notes", "outreach_status"]
         }
         
-        print(f"DEBUG: Normalized Headers Map: {headers}")
-        
+        row_count = 0
         for row in reader:
-            print(f"DEBUG: Processing row: {row}")
+            row_count += 1
             lead = {}
-            # Map columns using flexible mapping
             for internal_key, variations in mapping.items():
                 for var in variations:
                     original_col = headers.get(var)
@@ -207,19 +168,31 @@ class CSVService:
                         lead[internal_key] = str(row[original_col]).strip()
                         break
             
+            if not lead.get("company") and lead.get("store_name"):
+                lead["company"] = lead["store_name"]
+            if not lead.get("store_name") and lead.get("company"):
+                lead["store_name"] = lead["company"]
             if not lead.get("company") and lead.get("first_name") and not lead.get("last_name"):
                 lead["company"] = lead["first_name"]
-            if not lead.get("first_name") and lead.get("company"):
-                parts = str(lead["company"]).split()
-                lead["first_name"] = parts[0]
-                lead["last_name"] = " ".join(parts[1:]) if len(parts) > 1 else "Unknown"
-
-            if not lead.get("company"):
-                print(f"DEBUG: Warning - Company not found for row. Tried variations: {mapping['company']}")
             
-            if all(lead.get(col) for col in self.REQUIRED_COLUMNS):
+            if not lead.get("first_name"):
+                if lead.get("company"):
+                    parts = str(lead["company"]).split()
+                    lead["first_name"] = parts[0]
+                    lead["last_name"] = " ".join(parts[1:]) if len(parts) > 1 else None
+                elif lead.get("store_name"):
+                    parts = str(lead["store_name"]).split()
+                    lead["first_name"] = parts[0]
+                    lead["last_name"] = " ".join(parts[1:]) if len(parts) > 1 else None
+
+            if lead.get("phone") or lead.get("email"):
                 leads.append(lead)
+                print(f"DEBUG: Row {row_count} parsed successfully - {lead.get('first_name')} {lead.get('last_name')} ({lead.get('email')}, {lead.get('phone')})")
+            else:
+                print(f"DEBUG: Row {row_count} skipped - no phone or email found.")
                 
+        print(f"DEBUG: Parsed {len(leads)} leads from {row_count} rows")
+        return leads
         return leads
 
     def validate_leads(self, leads: List[Dict[str, Any]]) -> List[LeadCreate]:

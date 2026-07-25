@@ -108,6 +108,15 @@ async def resend_webhook(
             lead = db.query(Lead).filter(Lead.id == email.lead_id).first()
             if lead:
                 lead.status = "replied"
+            # Mirror to Communication if present
+            try:
+                from app.models.communication import Communication
+                comm = db.query(Communication).filter(Communication.provider_id == email.resend_id).first()
+                if comm:
+                    comm.replied = True
+                    db.add(comm)
+            except Exception:
+                db.rollback()
             db.commit()
             
     return {"status": "ok"}
@@ -191,6 +200,15 @@ async def handle_incoming_reply(
     # 7. Mark the email record as replied
     if last_email:
         last_email.replied = True
+        # Mirror to Communication if present
+        try:
+            from app.models.communication import Communication
+            comm = db.query(Communication).filter(Communication.provider_id == last_email.resend_id).first()
+            if comm:
+                comm.replied = True
+                db.add(comm)
+        except Exception:
+            db.rollback()
     
     db.commit()
     

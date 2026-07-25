@@ -11,27 +11,18 @@ from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.models.email import Email
+from app.models.communication import Communication
 from app.models.lead import Lead
 from app.models.campaign import Campaign, Sequence
 from app.schemas.email import EmailCreate
-
-import re
+from app.utils.template_vars import replace_template_vars
 
 class EmailService:
     def __init__(self):
         resend.api_key = settings.RESEND_API_KEY
 
     def _replace_vars(self, text: str, vars: Dict[str, str]) -> str:
-        """
-        Robustly replaces variables in text, handling {var}, {{var}}, and { var }.
-        """
-        if not text:
-            return ""
-        for key, value in vars.items():
-            # Handle {key}, {{key}}, { key }, {{ key }}
-            pattern = r"\{{1,2}\s*" + re.escape(key) + r"\s*\}{1,2}"
-            text = re.sub(pattern, str(value), text)
-        return text
+        return replace_template_vars(text, vars)
 
     def _should_fallback(self, error: Exception) -> bool:
         if not settings.POSTMARK_API_KEY and not settings.MAILTRAP_API_TOKEN and not settings.ZOHO_SMTP_USER:
@@ -226,6 +217,27 @@ class EmailService:
             db.add(email_record)
             db.commit()
             db.refresh(email_record)
+
+            # Also record a generic communication entry for unified analytics
+            try:
+                comm = Communication(
+                    campaign_id=campaign_id,
+                    lead_id=lead.id,
+                    sequence_id=sequence_id,
+                    channel="email",
+                    provider="resend",
+                    provider_id=r.get("id") if isinstance(r, dict) else getattr(r, "id", None),
+                    subject=subject,
+                    body=plain_body,
+                    status="sent",
+                    sent_at=datetime.now(timezone.utc),
+                )
+                db.add(comm)
+                db.commit()
+                db.refresh(comm)
+            except Exception:
+                # Non-fatal: analytics should not break delivery
+                db.rollback()
             
             print(f"DEBUG: Successfully saved email to database. ID: {email_record.id}, Resend ID: {r['id']}")
             return {"status": "success", "email_id": email_record.id, "resend_id": r["id"]}
@@ -295,6 +307,25 @@ class EmailService:
                         db.add(email_record)
                         db.commit()
                         db.refresh(email_record)
+                        # Record communication for fallback provider
+                        try:
+                            comm = Communication(
+                                campaign_id=campaign_id,
+                                lead_id=lead.id,
+                                sequence_id=sequence_id,
+                                channel="email",
+                                provider=provider,
+                                provider_id=f"{provider}-{msg_id}",
+                                subject=subject,
+                                body=plain_body,
+                                status="sent",
+                                sent_at=datetime.now(timezone.utc),
+                            )
+                            db.add(comm)
+                            db.commit()
+                            db.refresh(comm)
+                        except Exception:
+                            db.rollback()
                         print(f"DEBUG: {provider.capitalize()} fallback succeeded. Email ID: {email_record.id}")
                         return {
                             "status": "success",
@@ -416,8 +447,23 @@ class EmailService:
 
         if event_type == "email.opened":
             email.opened = True
+            # Mirror to Communication if present
+            try:
+                comm = db.query(Communication).filter(Communication.provider_id == email.resend_id).first()
+                if comm:
+                    comm.opened = True
+                    db.add(comm)
+            except Exception:
+                db.rollback()
         elif event_type == "email.clicked":
             email.clicked = True
+            try:
+                comm = db.query(Communication).filter(Communication.provider_id == email.resend_id).first()
+                if comm:
+                    comm.clicked = True
+                    db.add(comm)
+            except Exception:
+                db.rollback()
         
         db.commit()
 

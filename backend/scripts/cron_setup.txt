@@ -1,0 +1,38 @@
+# Autolead AWS Cron Setup Guide
+
+Since we have removed Celery `worker` and `beat` services from the architecture, you need to use an OS-level cron job on your AWS instance to periodically trigger the campaign follow-ups.
+
+## 1. Get your CRON_SECRET
+Check your `backend/.env` file for the `CRON_SECRET` variable.
+By default, it might be `super-secret-cron-key` (as defined in `config.py`), but you should use whatever is in your `.env`.
+
+## 2. Edit Crontab on your AWS EC2 instance
+Connect to your AWS instance via SSH and run:
+```bash
+crontab -e
+```
+
+## 3. Add the Cron Job
+Add the following line to run the check every 5 minutes. Make sure to replace `super-secret-cron-key` with your actual secret, and adjust the port if your FastAPI backend isn't running on port 8000 locally on the server.
+
+```cron
+*/5 * * * * curl -X POST http://localhost:8000/api/v1/campaigns/trigger-follow-ups -H "x-cron-secret: super-secret-cron-key" -H "Content-Length: 0" >/dev/null 2>&1
+```
+
+### Explanation:
+- `*/5 * * * *`: Runs the command every 5 minutes.
+- `curl -X POST ...`: Sends an HTTP POST request to the internal trigger endpoint.
+- `-H "x-cron-secret: ..."`: Authenticates the request so random external users can't trigger it.
+- `>/dev/null 2>&1`: Silences the cron output so it doesn't spam system logs or try to send local emails.
+
+## 4. Verify
+You can check if the cron job is installed successfully by running:
+```bash
+crontab -l
+```
+
+You can also manually trigger it once to make sure the endpoint works:
+```bash
+curl -X POST http://localhost:8000/api/v1/campaigns/trigger-follow-ups -H "x-cron-secret: super-secret-cron-key"
+```
+It should return `{"status": "success", "message": "Follow-up check triggered"}`.

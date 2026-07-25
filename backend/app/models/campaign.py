@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, Column, DateTime, Integer, String, Text, ForeignKey
+from sqlalchemy import Boolean, Column, DateTime, Integer, String, Text, ForeignKey, JSON
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
@@ -11,6 +11,8 @@ class Campaign(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, nullable=False)
     description = Column(Text)
+    channel = Column(String, default="email") # email, whatsapp
+    evolution_instance_name = Column(String, nullable=True)
     target_industry = Column(String) # Optional filter by industry
     status = Column(String, default="draft")  # draft, active, paused, completed
     scheduled_for = Column(DateTime(timezone=True), nullable=True)
@@ -33,6 +35,13 @@ class Sequence(Base):
     subject = Column(String, nullable=False)
     body = Column(Text, nullable=False)
     delay_days = Column(Integer, default=0)
+    delay_minutes = Column(Integer, default=0)
+    mediatype = Column(String, nullable=True)
+    mimetype = Column(String, nullable=True)
+    media = Column(Text, nullable=True)
+    caption = Column(Text, nullable=True)
+    poll_question = Column(String(255), nullable=True)
+    poll_options = Column(JSON, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     campaign = relationship("Campaign", back_populates="sequences")

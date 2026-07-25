@@ -10,6 +10,14 @@ from contextlib import asynccontextmanager
 
 def ensure_campaign_schema_updates() -> None:
     inspector = inspect(engine)
+    
+    # Update leads table
+    if "leads" in inspector.get_table_names():
+        existing_lead_columns = {column["name"] for column in inspector.get_columns("leads")}
+        if "phone" not in existing_lead_columns:
+            with engine.begin() as connection:
+                connection.execute(text("ALTER TABLE leads ADD COLUMN phone VARCHAR NULL"))
+
     if "campaigns" not in inspector.get_table_names():
         return
 
@@ -19,6 +27,7 @@ def ensure_campaign_schema_updates() -> None:
         "daily_send_limit": "ALTER TABLE campaigns ADD COLUMN daily_send_limit INTEGER NOT NULL DEFAULT 50",
         "send_window_start_hour": "ALTER TABLE campaigns ADD COLUMN send_window_start_hour INTEGER NOT NULL DEFAULT 9",
         "send_window_end_hour": "ALTER TABLE campaigns ADD COLUMN send_window_end_hour INTEGER NOT NULL DEFAULT 17",
+        "channel": "ALTER TABLE campaigns ADD COLUMN channel VARCHAR DEFAULT 'email'",
     }
 
     missing_updates = [
@@ -33,6 +42,33 @@ def ensure_campaign_schema_updates() -> None:
         for statement in missing_updates:
             connection.execute(text(statement))
 
+
+def ensure_communication_schema_updates() -> None:
+    inspector = inspect(engine)
+    if "communications" not in inspector.get_table_names():
+        return
+
+    existing_comm_columns = {column["name"]: column for column in inspector.get_columns("communications")}
+    alter_statements = []
+
+    if "campaign_id" in existing_comm_columns and not existing_comm_columns["campaign_id"]["nullable"]:
+        alter_statements.append("ALTER TABLE communications ALTER COLUMN campaign_id DROP NOT NULL")
+
+    if "sequence_id" in existing_comm_columns and not existing_comm_columns["sequence_id"]["nullable"]:
+        alter_statements.append("ALTER TABLE communications ALTER COLUMN sequence_id DROP NOT NULL")
+
+    if not alter_statements:
+        return
+
+    with engine.begin() as connection:
+        for statement in alter_statements:
+            try:
+                connection.execute(text(statement))
+            except Exception:
+                # If the database backend doesn't support ALTER COLUMN in this way, skip safely.
+                pass
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Create tables on startup (Safe mode)
@@ -40,6 +76,7 @@ async def lifespan(app: FastAPI):
         print("DEBUG: Attempting to create tables...")
         Base.metadata.create_all(bind=engine)
         ensure_campaign_schema_updates()
+        ensure_communication_schema_updates()
         print("DEBUG: Tables created successfully!")
     except Exception as e:
         print(f"ERROR: Database connection failed during startup: {str(e)}")

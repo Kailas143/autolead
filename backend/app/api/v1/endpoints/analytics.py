@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, case
 from app.api import deps
 from app.models.lead import Lead
-from app.models.email import Email
+from app.models.communication import Communication
 from app.models.reply import Reply
 from app.models.campaign import Sequence, Campaign
 from datetime import datetime, timedelta
@@ -23,14 +23,14 @@ def get_analytics_stats(
     """
     # 1. Base Metrics
     total_leads = db.query(func.count(Lead.id)).filter(Lead.user_id == current_user.id).scalar() or 0
+
+    comm_query = db.query(Communication).join(Lead, Communication.lead_id == Lead.id).filter(Lead.user_id == current_user.id)
+    total_messages_sent = comm_query.count()
+    total_opens = comm_query.filter(Communication.opened == True).count()
+    total_replies = comm_query.filter(Communication.replied == True).count()
     
-    email_query = db.query(Email).join(Lead).filter(Lead.user_id == current_user.id)
-    total_emails_sent = email_query.count()
-    total_opens = email_query.filter(Email.opened == True).count()
-    total_replies = email_query.filter(Email.replied == True).count()
-    
-    reply_rate = (total_replies / total_emails_sent * 100) if total_emails_sent > 0 else 0
-    open_rate = (total_opens / total_emails_sent * 100) if total_emails_sent > 0 else 0
+    reply_rate = (total_replies / total_messages_sent * 100) if total_messages_sent > 0 else 0
+    open_rate = (total_opens / total_messages_sent * 100) if total_messages_sent > 0 else 0
 
     # 2. Reply Sentiment (for Pie Chart)
     sentiment_stats = db.query(
@@ -48,9 +48,9 @@ def get_analytics_stats(
         # Use local time for day boundaries
         day = (now_ist - timedelta(days=i)).date()
         # Use func.date for more reliable date comparison in Postgres/SQLite
-        day_query = email_query.filter(func.date(Email.sent_at) == day)
+        day_query = comm_query.filter(func.date(Communication.sent_at) == day)
         sent_count = day_query.count()
-        open_count = day_query.filter(Email.opened == True).count()
+        open_count = day_query.filter(Communication.opened == True).count()
         last_7_days.append({
             "date": day.strftime("%b %d"),
             "sent": sent_count,
@@ -60,12 +60,12 @@ def get_analytics_stats(
     # 4. Top Performing Sequences
     top_sequences = db.query(
         Sequence.subject,
-        func.count(Email.id).label("sent_count"),
-        func.sum(case((Email.opened == True, 1), else_=0)).label("open_count"),
-        func.sum(case((Email.replied == True, 1), else_=0)).label("reply_count")
-    ).join(Email, Email.sequence_id == Sequence.id).join(Lead).filter(
+        func.count(Communication.id).label("sent_count"),
+        func.sum(case((Communication.opened == True, 1), else_=0)).label("open_count"),
+        func.sum(case((Communication.replied == True, 1), else_=0)).label("reply_count")
+    ).join(Communication, Communication.sequence_id == Sequence.id).join(Lead, Communication.lead_id == Lead.id).filter(
         Lead.user_id == current_user.id
-    ).group_by(Sequence.id, Sequence.subject).order_by(func.count(Email.id).desc()).limit(5).all()
+    ).group_by(Sequence.id, Sequence.subject).order_by(func.count(Communication.id).desc()).limit(5).all()
 
     formatted_sequences = [
         {
@@ -80,7 +80,7 @@ def get_analytics_stats(
     return {
         "summary": {
             "total_leads": total_leads,
-            "total_emails_sent": total_emails_sent,
+            "total_messages_sent": total_messages_sent,
             "total_opens": total_opens,
             "open_rate": f"{open_rate:.1f}%",
             "total_replies": total_replies,
@@ -103,21 +103,25 @@ def get_outreach_log(
     
     log = []
     for lead in leads:
-        # Get all emails sent to this lead, joined with sequence to get step numbers
-        emails = db.query(Email, Sequence.step_number).join(
-            Sequence, Email.sequence_id == Sequence.id
-        ).filter(Email.lead_id == lead.id).order_by(Email.sent_at.asc()).all()
-        
+        # Get all outreach messages sent to this lead, joined with sequence to get step numbers
+        comms = db.query(Communication, Sequence.step_number).outerjoin(
+            Sequence, Communication.sequence_id == Sequence.id
+        ).filter(Communication.lead_id == lead.id).order_by(Communication.sent_at.asc()).all()
+
+        last_step = comms[-1][1] if comms and comms[-1][1] is not None else 0
+        last_sent = comms[-1][0].sent_at if comms else None
+        status = "replied" if any(c[0].replied for c in comms) else ("active" if comms else "pending")
+
         log.append({
             "id": lead.id,
             "lead_name": f"{lead.first_name} {lead.last_name}",
             "company": lead.company,
             "email": lead.email,
             "industry": lead.industry,
-            "emails_sent": len(emails),
-            "last_step": emails[-1][1] if emails else 0,
-            "last_sent": emails[-1][0].sent_at if emails else None,
-            "status": "replied" if any(e[0].replied for e in emails) else ("active" if emails else "pending")
+            "messages_sent": len(comms),
+            "last_step": last_step,
+            "last_sent": last_sent,
+            "status": status
         })
     
     return log
@@ -132,32 +136,32 @@ def get_sent_messages(
     Get all sent messages for the current user with customer and send-time details.
     """
     messages = (
-        db.query(Email, Lead, Sequence, Campaign)
-        .join(Lead, Email.lead_id == Lead.id)
-        .join(Sequence, Email.sequence_id == Sequence.id)
-        .join(Campaign, Email.campaign_id == Campaign.id)
+        db.query(Communication, Lead, Sequence, Campaign)
+        .join(Lead, Communication.lead_id == Lead.id)
+        .outerjoin(Sequence, Communication.sequence_id == Sequence.id)
+        .outerjoin(Campaign, Communication.campaign_id == Campaign.id)
         .filter(Lead.user_id == current_user.id)
-        .order_by(Email.sent_at.desc(), Email.created_at.desc())
+        .order_by(Communication.sent_at.desc(), Communication.created_at.desc())
         .all()
     )
 
     sent_messages = []
-    for email, lead, sequence, campaign in messages:
+    for comm, lead, sequence, campaign in messages:
         customer_name = " ".join(part for part in [lead.first_name, lead.last_name] if part).strip() or lead.email
-        status = "replied" if email.replied else "opened" if email.opened else "sent"
-        body_preview = (email.body or "").strip().replace("\n", " ")
+        status = "replied" if comm.replied else "opened" if comm.opened else "sent"
+        body_preview = (comm.body or "").strip().replace("\n", " ")
 
         sent_messages.append({
-            "id": email.id,
+            "id": comm.id,
             "customer_name": customer_name,
             "customer_email": lead.email,
             "company": lead.company,
             "industry": lead.industry,
-            "subject": email.subject,
+            "subject": comm.subject,
             "body_preview": body_preview[:160],
-            "sent_at": email.sent_at or email.created_at,
-            "campaign_name": campaign.name,
-            "sequence_step": sequence.step_number,
+            "sent_at": comm.sent_at or comm.created_at,
+            "campaign_name": campaign.name if campaign else None,
+            "sequence_step": sequence.step_number if sequence else None,
             "status": status,
         })
 

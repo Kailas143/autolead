@@ -6,9 +6,12 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app import schemas, models
 from app.api import deps
+from app.services.whatsapp_service import whatsapp_service
+from app.models.communication import Communication
+from app.utils.template_vars import replace_template_vars
 from app.workers.tasks import launch_campaign_task, check_follow_ups
 from app.core.config import settings
-from fastapi import Header
+from fastapi import Header, BackgroundTasks
 
 router = APIRouter()
 
@@ -20,8 +23,25 @@ def _to_utc(dt: datetime | None) -> datetime | None:
         return dt.replace(tzinfo=timezone.utc)
     return dt.astimezone(timezone.utc)
 
+
+def _render_whatsapp_body(template: str, lead: models.Lead) -> str:
+    replacements = {
+        "first_name": lead.first_name or "",
+        "last_name": lead.last_name or "",
+        "company": lead.company or "",
+        "title": lead.title or "",
+        "industry": lead.industry or "",
+    }
+    return replace_template_vars(template, replacements)
+
+
+def _campaign_instance_name(campaign: models.Campaign) -> str:
+    return campaign.evolution_instance_name or f"user_{campaign.user_id}_whatsapp"
+
+
 @router.post("/trigger-follow-ups")
 def trigger_follow_ups(
+    background_tasks: BackgroundTasks,
     x_cron_secret: str = Header(None),
 ) -> Any:
     """
@@ -31,7 +51,7 @@ def trigger_follow_ups(
     if not settings.CRON_SECRET or x_cron_secret != settings.CRON_SECRET:
         raise HTTPException(status_code=403, detail="Invalid cron secret")
     
-    check_follow_ups.delay()
+    background_tasks.add_task(check_follow_ups)
     return {"status": "success", "message": "Follow-up check triggered"}
 
 
@@ -52,12 +72,11 @@ def read_campaigns(
     result = []
     for campaign in campaigns:
         # Calculate stats for this campaign
-        email_query = db.query(models.Email).filter(models.Email.campaign_id == campaign.id)
-        total_sent = email_query.count()
-        
-        # Use portable case() syntax for SQLAlchemy 2.0
-        total_opened = db.query(func.sum(case((models.Email.opened == True, 1), else_=0))).filter(models.Email.campaign_id == campaign.id).scalar() or 0
-        total_replied = db.query(func.sum(case((models.Email.replied == True, 1), else_=0))).filter(models.Email.campaign_id == campaign.id).scalar() or 0
+        # Use unified Communications table for campaign metrics (covers email, whatsapp, etc.)
+        comm_query = db.query(models.Communication).filter(models.Communication.campaign_id == campaign.id)
+        total_sent = comm_query.count()
+        total_opened = db.query(func.sum(case((models.Communication.opened == True, 1), else_=0))).filter(models.Communication.campaign_id == campaign.id).scalar() or 0
+        total_replied = db.query(func.sum(case((models.Communication.replied == True, 1), else_=0))).filter(models.Communication.campaign_id == campaign.id).scalar() or 0
         
         open_rate = (total_opened / total_sent * 100) if total_sent > 0 else 0
         reply_rate = (total_replied / total_sent * 100) if total_sent > 0 else 0
@@ -70,6 +89,8 @@ def read_campaigns(
             "id": campaign.id,
             "name": campaign.name,
             "description": campaign.description,
+            "channel": campaign.channel,
+            "evolution_instance_name": campaign.evolution_instance_name,
             "status": campaign.status,
             "scheduled_for": campaign.scheduled_for,
             "target_industry": campaign.target_industry,
@@ -97,6 +118,9 @@ def create_campaign(
     """
     Create new campaign.
     """
+    if campaign_in.channel == "whatsapp" and not campaign_in.evolution_instance_name:
+        raise HTTPException(status_code=400, detail="Evolution instance name is required for WhatsApp campaigns")
+
     # Create campaign
     campaign_data = campaign_in.dict(exclude={"sequences"})
     campaign = models.Campaign(**campaign_data, user_id=current_user.id)
@@ -132,6 +156,88 @@ def read_campaign(
     return campaign
 
 
+@router.post("/{campaign_id}/send-lead/{lead_id}")
+def send_campaign_lead_whatsapp(
+    *,
+    db: Session = Depends(deps.get_db),
+    campaign_id: int,
+    lead_id: int,
+    send_request: schemas.CampaignSendRequest,
+    current_user: models.User = Depends(deps.get_current_active_user),
+) -> Any:
+    """
+    Send a WhatsApp campaign sequence message to a single lead.
+    """
+    campaign = db.query(models.Campaign).filter(models.Campaign.id == campaign_id, models.Campaign.user_id == current_user.id).first()
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+
+    if campaign.channel != "whatsapp":
+        raise HTTPException(status_code=400, detail="Campaign is not configured for WhatsApp")
+
+    lead = db.query(models.Lead).filter(models.Lead.id == lead_id, models.Lead.user_id == current_user.id).first()
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead not found")
+
+    if not lead.phone:
+        raise HTTPException(status_code=400, detail="Lead does not have a phone number")
+
+    sequence = db.query(models.Sequence).filter(models.Sequence.id == send_request.sequence_id, models.Sequence.campaign_id == campaign.id).first()
+    if not sequence:
+        raise HTTPException(status_code=404, detail="Sequence not found")
+
+    body = _render_whatsapp_body(sequence.body, lead)
+    if not body.strip():
+        raise HTTPException(status_code=400, detail="WhatsApp sequence body is empty")
+
+    instance_name = send_request.instance_name or _campaign_instance_name(campaign)
+    whatsapp_service.ensure_instance_sync(instance_name)
+    if sequence.mediatype and sequence.media:
+        success = whatsapp_service.send_media_sync(
+            instance_name,
+            lead.phone,
+            sequence.media,
+            sequence.mediatype,
+            sequence.mimetype or "application/octet-stream",
+            sequence.caption or body
+        )
+    else:
+        success = whatsapp_service.send_message_sync(instance_name, lead.phone, body)
+
+    if success and sequence.poll_question and sequence.poll_options:
+        whatsapp_service.send_poll_sync(
+            instance_name, 
+            lead.phone, 
+            sequence.poll_question, 
+            sequence.poll_options
+        )
+
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to send WhatsApp campaign message")
+
+    comm = Communication(
+        campaign_id=campaign.id,
+        lead_id=lead.id,
+        sequence_id=sequence.id,
+        channel="whatsapp",
+        provider="evolution",
+        provider_id=None,
+        subject=sequence.subject + (" (Media)" if sequence.media else ""),
+        body=body or sequence.caption or "[Media Attachment]",
+        status="sent",
+        sent_at=datetime.now(timezone.utc)
+    )
+    db.add(comm)
+    db.commit()
+    db.refresh(comm)
+
+    return {
+        "status": "success",
+        "message": "WhatsApp campaign message sent successfully",
+        "communication_id": comm.id,
+    }
+
+
 @router.post("/{campaign_id}/sequences", response_model=schemas.Sequence)
 def create_sequence(
     *,
@@ -157,6 +263,7 @@ def launch_campaign(
     *,
     db: Session = Depends(deps.get_db),
     campaign_id: int,
+    background_tasks: BackgroundTasks,
     current_user: models.User = Depends(deps.get_current_active_user),
 ) -> Any:
     """
@@ -173,7 +280,7 @@ def launch_campaign(
         campaign.scheduled_for = scheduled_for
         campaign.status = "scheduled"
         db.commit()
-        launch_campaign_task.apply_async(args=[campaign_id], eta=scheduled_for)
+        # Cron job will pick this up when the time comes
         return {
             "status": "success",
             "message": "Campaign scheduled successfully",
@@ -184,7 +291,7 @@ def launch_campaign(
     db.commit()
 
     # Trigger background task immediately
-    launch_campaign_task.delay(campaign_id)
+    background_tasks.add_task(launch_campaign_task, campaign_id)
 
     return {"status": "success", "message": "Campaign launch triggered"}
 
@@ -194,11 +301,12 @@ def send_new_leads(
     *,
     db: Session = Depends(deps.get_db),
     campaign_id: int,
+    background_tasks: BackgroundTasks,
     current_user: models.User = Depends(deps.get_current_active_user),
 ) -> Any:
     """
-    Reuse an existing campaign and queue emails only for leads that have not
-    yet received an email in this campaign.
+    Reuse an existing campaign and queue messages only for leads that have not
+    yet received this campaign's first message.
     """
     campaign = db.query(models.Campaign).filter(models.Campaign.id == campaign_id, models.Campaign.user_id == current_user.id).first()
     if not campaign:
@@ -209,7 +317,7 @@ def send_new_leads(
         campaign.status = "active"
     db.commit()
 
-    launch_campaign_task.delay(campaign_id)
+    background_tasks.add_task(launch_campaign_task, campaign_id)
 
     return {"status": "success", "message": "Existing campaign triggered for new leads only"}
 

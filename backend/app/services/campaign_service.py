@@ -18,6 +18,8 @@ def create(db: Session, *, obj_in: CampaignCreate, user_id: int) -> Campaign:
     db_obj = Campaign(
         name=obj_in.name,
         description=obj_in.description,
+        channel=obj_in.channel,
+        evolution_instance_name=obj_in.evolution_instance_name,
         user_id=user_id
     )
     db.add(db_obj)
@@ -31,7 +33,8 @@ def create(db: Session, *, obj_in: CampaignCreate, user_id: int) -> Campaign:
             step_number=seq_data.step_number,
             subject=seq_data.subject,
             body=seq_data.body,
-            delay_days=seq_data.delay_days
+            delay_days=seq_data.delay_days,
+            delay_minutes=seq_data.delay_minutes,
         )
         db.add(seq)
 
