@@ -40,12 +40,18 @@ class WhatsAppService:
             try:
                 with httpx.Client(timeout=kwargs.pop("timeout", 15.0)) as client:
                     response = client.request(method, url, **kwargs)
+                    if response.status_code in {400, 428} and "Connection Closed" in response.text:
+                        if attempt < self.MAX_RETRIES:
+                            logger.warning(f"Connection Closed on {url}, attempting to restart instance (attempt {attempt})...")
+                            self._attempt_restart_from_url(url)
+                            time.sleep(5)  # wait for connection to establish
+                            continue
                     response.raise_for_status()
                     return response
             except httpx.HTTPStatusError as exc:
                 last_exception = exc
                 status_code = exc.response.status_code
-                if status_code in {429, 500, 502, 503, 504} and attempt < self.MAX_RETRIES:
+                if status_code in {429, 428, 500, 502, 503, 504} and attempt < self.MAX_RETRIES:
                     backoff = self.RETRY_BACKOFF_SECONDS * (2 ** (attempt - 1))
                     logger.warning(
                         f"WhatsApp request failed with status {status_code}. Retrying in {backoff:.1f}s (attempt {attempt})"
@@ -65,6 +71,17 @@ class WhatsAppService:
                 raise
 
         raise last_exception
+
+    def _attempt_restart_from_url(self, url: str):
+        try:
+            instance_name = url.rstrip("/").split("/")[-1]
+            restart_url = f"{self.base_url}/instance/restart/{instance_name}"
+            with httpx.Client() as client:
+                res = client.put(restart_url, headers=self._build_headers(), timeout=10.0)
+                if res.status_code in {404, 405}: # Method Not Allowed or Not Found
+                    client.post(restart_url, headers=self._build_headers(), timeout=10.0)
+        except Exception as e:
+            logger.error(f"Failed to auto-restart instance: {e}")
 
     def ensure_instance_sync(self, instance_name: str) -> bool:
         """Create the instance only when it does not already exist."""

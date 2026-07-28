@@ -78,7 +78,7 @@ services:
       - ./frontend:/app
       - /app/node_modules
     environment:
-      - NEXT_PUBLIC_API_URL=http://localhost:8000/api/v1
+      - NEXT_PUBLIC_API_URL=http://16.192.151.211.nip.io:8000/api/v1
     ports:
       - "3000:3000"
     depends_on:
